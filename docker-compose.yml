@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: budget_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-budget_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-budget_pass}
+      POSTGRES_DB: ${DB_DATABASE:-budget_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/init:/docker-entrypoint-initdb.d
+    networks:
+      - budget_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-budget_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: budget_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - budget_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端应用
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: budget_backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=${DB_USERNAME:-budget_user}
+      - DB_PASSWORD=${DB_PASSWORD:-budget_pass}
+      - DB_DATABASE=${DB_DATABASE:-budget_db}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - JWT_EXPIRES_IN=7d
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    volumes:
+      - ./backend/logs:/app/logs
+      - ./backend/uploads:/app/uploads
+    networks:
+      - budget_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # 前端应用
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: budget_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - budget_network
+    depends_on:
+      - backend
+
+  # Nginx反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: budget_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - budget_network
+    depends_on:
+      - frontend
+      - backend
+
+networks:
+  budget_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
