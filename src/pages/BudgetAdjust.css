@@ -1,0 +1,40 @@
+.budget-adjust .info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.budget-adjust .info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.budget-adjust .info-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.budget-adjust .info-value {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.text-success {
+  color: var(--success);
+}
+
+.text-danger {
+  color: var(--danger);
+}
+
+.budget-adjust textarea.input {
+  resize: vertical;
+  min-height: 100px;
+}
+
+@media (max-width: 768px) {
+  .budget-adjust .info-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,110 @@
+.purchase-create-page .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.purchase-create-page .full-width {
+  grid-column: 1 / -1;
+}
+
+.purchase-create-page .budget-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 12px;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.purchase-create-page .info-badge {
+  padding: 4px 12px;
+  background: rgba(52, 199, 89, 0.15);
+  color: var(--success);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.purchase-create-page .amount-summary {
+  padding: 20px;
+  background: #fafafa;
+  border-radius: 8px;
+}
+
+.purchase-create-page .amount-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.purchase-create-page .amount-row:last-child {
+  margin-bottom: 0;
+}
+
+.purchase-create-page .amount-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.purchase-create-page .amount-value {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.purchase-create-page .approval-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 0;
+}
+
+.purchase-create-page .flow-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.purchase-create-page .step-number {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--primary), #00c7be);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.purchase-create-page .step-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.purchase-create-page .flow-arrow {
+  font-size: 24px;
+  color: var(--border);
+  padding: 0 8px;
+}
+
+@media (max-width: 768px) {
+  .purchase-create-page .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .purchase-create-page .approval-preview {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .purchase-create-page .flow-arrow {
+    transform: rotate(90deg);
+  }
+}
