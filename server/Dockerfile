@@ -1,5 +1,14 @@
 # 后端 Dockerfile
-FROM node:20-alpine AS builder
+FROM node:20 AS builder
+
+WORKDIR /app
+
+# 安装构建依赖
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -22,12 +31,14 @@ RUN npx prisma generate
 RUN npm run build
 
 # 生产镜像
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
 
-# 安装运行时依赖
-RUN apk add --no-cache openssl
+# 安装运行时依赖（包括 OpenSSL）
+RUN apt-get update && apt-get install -y \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
 
 # 复制 package 文件
 COPY package*.json ./
