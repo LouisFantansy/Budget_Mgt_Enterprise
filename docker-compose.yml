@@ -9,6 +9,8 @@ services:
       dockerfile: Dockerfile.frontend
     container_name: budget_frontend
     restart: always
+    volumes:
+      - frontend_dist:/usr/share/nginx/html
     networks:
       - budget_network
 
@@ -64,7 +66,7 @@ services:
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./dist:/usr/share/nginx/html:ro
+      - frontend_dist:/usr/share/nginx/html:ro
     depends_on:
       - frontend
     networks:
@@ -73,6 +75,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  frontend_dist:
 
 networks:
   budget_network:
