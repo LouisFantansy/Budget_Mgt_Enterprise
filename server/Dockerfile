@@ -43,13 +43,16 @@ RUN apt-get update && apt-get install -y \
 # 复制 package 文件
 COPY package*.json ./
 
-# 安装生产依赖
-RUN npm ci --only=production && npm cache clean --force
+# 安装全部依赖（保留 devDependencies 用于种子数据）
+RUN npm ci --include=dev && npm cache clean --force
 
 # 从 builder 复制构建产物
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/src/prisma/schema.prisma ./prisma/schema.prisma
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/ts-node ./node_modules/ts-node
+COPY --from=builder /app/node_modules/.bin/ts-node ./node_modules/.bin/ts-node
 
 # 暴露端口
 EXPOSE 3000
