@@ -234,9 +234,10 @@ model ApprovalFlow {
   id            String    @id @default(uuid())
   templateId    String?
   targetType    String    // BUDGET, PURCHASE, ADJUSTMENT
-  targetId      String    // 关联的预算/采购/调整 ID
-  budget        Budget?   @relation(fields: [targetId], references: [id])
-  purchase      PurchaseRequest? @relation(fields: [targetId], references: [id])
+  budgetId      String?   // 关联的预算 ID
+  purchaseId    String?   // 关联的采购申请 ID
+  budget        Budget?   @relation(fields: [budgetId], references: [id])
+  purchase      PurchaseRequest? @relation(fields: [purchaseId], references: [id])
   steps         ApprovalStep[]
   currentStep   Int       @default(1)
   status        ApprovalStatus @default(PENDING)
