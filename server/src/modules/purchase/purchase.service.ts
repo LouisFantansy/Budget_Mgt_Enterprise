@@ -158,7 +158,7 @@ export class PurchaseService {
       await this.prisma.budget.update({
         where: { id: request.budgetId },
         data: {
-          frozenAmount: request.budget.frozenAmount.toNumber() + parseFloat(request.totalAmount),
+          frozenAmount: request.budget.frozenAmount.toNumber() + request.totalAmount,
         },
       });
     }
