@@ -244,7 +244,8 @@ model ApprovalFlow {
   createdAt     DateTime  @default(now())
   completedAt   DateTime?
 
-  @@index([targetId])
+  @@index([budgetId])
+  @@index([purchaseId])
   @@index([status])
 }
 
