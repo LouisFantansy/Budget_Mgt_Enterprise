@@ -6,8 +6,8 @@ WORKDIR /app
 # 复制 package 文件
 COPY package*.json ./
 
-# 安装依赖
-RUN npm ci --only=production && npm cache clean --force
+# 安装依赖（需要 devDependencies 用于构建）
+RUN npm ci && npm cache clean --force
 
 # 复制 prisma schema
 COPY src/prisma/schema.prisma ./prisma/schema.prisma
