@@ -35,7 +35,7 @@ export class ReportService {
       },
     });
 
-    const executionRate = budgetExecution._sum.totalAmount && budgetExecution._sum.totalAmount > 0
+    const executionRate = budgetExecution._sum.totalAmount && Number(budgetExecution._sum.totalAmount) > 0
       ? Number(budgetExecution._sum.usedAmount || 0) / Number(budgetExecution._sum.totalAmount)
       : 0;
 

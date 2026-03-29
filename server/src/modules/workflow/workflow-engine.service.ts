@@ -40,7 +40,7 @@ export class WorkflowEngineService {
       data: {
         templateId: template.id,
         targetType,
-        targetId,
+        budget: targetId ? { connect: { id: targetId } } : undefined,
         status: 'PENDING',
         currentStep: 1,
         steps: {

@@ -23,6 +23,9 @@ export class BudgetService {
         ...budgetData,
         totalAmount: parseFloat(budgetData.totalAmount),
         budgetNo,
+        department: {
+          connect: { id: budgetData.departmentId }
+        },
         items: items && items.length > 0 ? {
           create: items.map((item, index) => ({
             ...item,
