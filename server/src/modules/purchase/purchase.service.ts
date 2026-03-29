@@ -153,12 +153,12 @@ export class PurchaseService {
     }
 
     // 检查是否已占用预算
-    if (request.budget.frozenAmount < request.totalAmount) {
+    if (request.budget.frozenAmount.toNumber() < request.totalAmount) {
       // 需要更新预算的冻结金额
       await this.prisma.budget.update({
         where: { id: request.budgetId },
         data: {
-          frozenAmount: request.budget.frozenAmount.toNumber() + request.totalAmount,
+          frozenAmount: request.budget.frozenAmount.toNumber() + request.totalAmount.toNumber(),
         },
       });
     }
