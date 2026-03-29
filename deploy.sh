@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ################################################################################
-# 企业级预算管理系统 - 一键部署脚本 (修订版)
+# 企业级预算管理系统 - 一键部署脚本 (付费镜像版)
 # 适用于 Ubuntu 22.04 LTS
 # 
 # 使用方法:
@@ -10,7 +10,7 @@
 #   sudo ./deploy.sh
 #
 # 作者：Louis
-# 版本：1.1.0 (修复国内网络问题)
+# 版本：1.2.0 (使用付费镜像加速)
 ################################################################################
 
 set -e
@@ -29,6 +29,10 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 trap 'log_error "部署失败"; exit 1' ERR
 
+# ===== 用户配置区域 =====
+DOCKER_MIRROR="5oo6hewxl4otsdb6id.xuanyuan.run"
+# =========================
+
 ################################################################################
 # 步骤 1: 系统检查和更新
 ################################################################################
@@ -41,7 +45,7 @@ fi
 
 apt update -y
 apt upgrade -y
-apt install -y curl git vim wget htop net-tools unzip gnupg lsb-release
+apt install -y curl git vim wget htop net-tools unzip gnupg lsb-release ca-certificates
 
 log_success "系统更新完成"
 
@@ -56,67 +60,96 @@ ufw allow 443/tcp
 log_success "防火墙配置完成"
 
 ################################################################################
-# 步骤 3: 安装 Docker (国内优化版)
+# 步骤 3: 配置 Docker 镜像加速
 ################################################################################
-log_info "步骤 3/8: 安装 Docker 环境..."
+log_info "步骤 3/8: 配置 Docker 镜像加速..."
 
-# 尝试多种安装方式
+# 创建 Docker 配置目录
+mkdir -p /etc/docker
+
+# 配置镜像加速器（用于后续拉取镜像）
+cat > /etc/docker/daemon.json << EOF
+{
+  "registry-mirrors": [
+    "https://${DOCKER_MIRROR}"
+  ],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOF
+
+log_info "已配置镜像加速器：https://${DOCKER_MIRROR}"
+
+################################################################################
+# 步骤 4: 安装 Docker (使用付费镜像)
+################################################################################
+log_info "步骤 4/8: 安装 Docker 环境..."
+
+# 尝试多种方式安装
 install_docker() {
-    # 方式1: 尝试使用阿里云镜像
-    log_info "尝试方式1: 使用阿里云 Docker 镜像..."
-    curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg 2>/dev/null && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://mirrors.aliyun.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
-    apt update -y && \
-    apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin && return 0
+    # 方式1: 使用付费镜像源安装
+    log_info "使用付费镜像源安装 Docker..."
     
-    # 方式2: 使用系统自带的 docker.io
-    log_info "尝试方式2: 使用系统自带 Docker..."
-    apt install -y docker.io docker-compose && return 0
+    # 添加 Docker 官方 GPG 密钥
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg 2>/dev/null || \
+    curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
     
-    # 方式3: 强制安装
-    log_info "尝试方式3: 强制安装..."
+    # 添加 Docker 仓库
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    # 替换为付费镜像源
+    sed -i "s|https://download.docker.com|https://${DOCKER_MIRROR}|g" /etc/apt/sources.list.d/docker.list 2>/dev/null || true
+    
     apt update -y
-    apt install -y --allow-unauthenticated docker.io docker-compose
+    
+    # 安装 Docker
+    apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin || apt install -y docker.io docker-compose
+    
     return 0
 }
 
 install_docker
 
-# 确保 Docker 启动
-systemctl start docker 2>/dev/null || true
-systemctl enable docker 2>/dev/null || true
+# 重启 Docker 服务
+systemctl daemon-reload
+systemctl restart docker
+systemctl enable docker
 
 # 验证
-docker --version || log_warning "Docker 验证失败，请手动检查"
-docker-compose --version || log_warning "Docker Compose 验证失败，请手动检查"
+docker --version
+docker-compose --version
 
 log_success "Docker 环境安装完成"
 
 ################################################################################
-# 步骤 4: 克隆项目代码
+# 步骤 5: 克隆项目代码 (使用镜像加速)
 ################################################################################
-log_info "步骤 4/8: 克隆项目代码..."
+log_info "步骤 5/8: 克隆项目代码..."
 
 cd /opt
 
 if [ -d "Budget_Mgt_Enterprise" ]; then
-    log_warning "检测到旧项目，��份并重新克隆..."
+    log_warning "检测到旧项目，备份并重新克隆..."
     mv Budget_Mgt_Enterprise Budget_Mgt_Enterprise_backup_$(date +%Y%m%d_%H%M%S)
 fi
 
 # 尝试多种克隆方式
+log_info "使用镜像加速克隆..."
 git clone https://github.com/LouisFantansy/Budget_Mgt_Enterprise.git || \
-git clone https://ghproxy.com/https://github.com/LouisFantansy/Budget_Mgt_Enterprise.git || \
-git clone https://hub.fgit.ml/LouisFantansy/Budget_Mgt_Enterprise.git
+git clone https://${DOCKER_MIRROR}/https://github.com/LouisFantansy/Budget_Mgt_Enterprise.git || \
+git clone https://ghproxy.com/https://github.com/LouisFantansy/Budget_Mgt_Enterprise.git
 
 cd Budget_Mgt_Enterprise
 
 log_success "项目代码克隆完成"
 
 ################################################################################
-# 步骤 5: 生成环境变量配置
+# 步骤 6: 生成环境变量配置
 ################################################################################
-log_info "步骤 5/8: 生成环境变量配置..."
+log_info "步骤 6/8: 生成环境变量配置..."
 
 # 生成随机密钥
 JWT_SECRET=$(openssl rand -hex 32)
@@ -144,25 +177,29 @@ log_warning "管理员密码：Admin@123456"
 log_warning "=============================================="
 
 ################################################################################
-# 步骤 6: SSL 证书（跳过）
-################################################################################
-log_info "步骤 6/8: 跳过 SSL 证书申请 (可选)..."
-log_warning "提示：如需 HTTPS，请配置域名后手动申请 Let's Encrypt 证书"
-
-################################################################################
 # 步骤 7: 启动服务
 ################################################################################
 log_info "步骤 7/8: 启动所有服务..."
 
-# 检查并修复 docker-compose 配置
+# 检查配置
 if [ ! -f "docker-compose.prod.yml" ]; then
     log_warning "未找到生产配置，使用默认配置..."
     cp docker-compose.yml docker-compose.prod.yml 2>/dev/null || true
 fi
 
-# 尝试启动
-docker-compose -f docker-compose.prod.yml up -d || \
-docker-compose up -d
+# 预拉取镜像（使用镜像加速）
+log_info "预拉取 Docker 镜像（可能需要几分钟）..."
+
+# 设置镜像拉取策略
+export DOCKER_REGISTRY_MIRROR="https://${DOCKER_MIRROR}"
+
+# 拉取基础镜像
+docker pull postgres:16-alpine || true
+docker pull redis:7-alpine || true
+docker pull nginx:alpine || true
+
+# 启动服务
+docker-compose -f docker-compose.prod.yml up -d || docker-compose up -d
 
 sleep 30
 docker-compose ps
@@ -174,9 +211,7 @@ log_success "服务启动完成"
 ################################################################################
 log_info "步骤 8/8: 等待数据库就绪..."
 
-sleep 20
-
-# 检查 PostgreSQL 是否就绪
+# 等待数据库就绪
 for i in {1..30}; do
     if docker exec budget_postgres pg_isready -U postgres 2>/dev/null; then
         log_success "数据库已就绪"
