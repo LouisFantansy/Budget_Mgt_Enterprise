@@ -1,3 +1,5 @@
+@import './styles/variables.css';
+
 :root {
   --primary: #0071e3;
   --primary-hover: #0077ed;

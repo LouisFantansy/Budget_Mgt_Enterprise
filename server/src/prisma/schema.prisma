@@ -1,0 +1,447 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== 用户与权限 ====================
+
+model User {
+  id            String    @id @default(uuid())
+  username      String    @unique
+  password      String    // bcrypt 哈希
+  name          String
+  email         String?   @unique
+  phone         String?
+  avatar        String?
+  status        UserStatus @default(ACTIVE)
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id])
+  roles         UserRole[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+  loginAttempts Int       @default(0)
+
+  @@index([username])
+  @@index([email])
+  @@index([departmentId])
+}
+
+model Role {
+  id          String       @id @default(uuid())
+  name        String       @unique  // admin, budget_manager, dept_head, finance, purchaser, viewer
+  displayName String
+  description String?
+  isSystem    Boolean      @default(false) // 系统内置角色不可删
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@index([name])
+}
+
+model Permission {
+  id       String  @id @default(uuid())
+  module   String  // budget, purchase, approval, report, system
+  action   String  // create, read, update, delete, approve, export
+  name     String  @unique
+  roles    RolePermission[]
+
+  @@index([module])
+  @@index([name])
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+// ==================== 组织结构 ====================
+
+model Department {
+  id          String       @id @default(uuid())
+  name        String
+  code        String       @unique
+  level       Int          // 1, 2, 3
+  parentId    String?
+  parent      Department?  @relation("DeptTree", fields: [parentId], references: [id])
+  children    Department[] @relation("DeptTree")
+  managerId   String?      // 部门负责人
+  budgetAdminId String?    // 预算管理员
+  users       User[]
+  budgets     Budget[]
+  sortOrder   Int          @default(0)
+  status      DeptStatus   @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([code])
+  @@index([parentId])
+}
+
+// ==================== 预算管理 ====================
+
+model Budget {
+  id            String       @id @default(uuid())
+  budgetNo      String       @unique // 自动生成：BG-2026-001
+  name          String
+  departmentId  String
+  department    Department   @relation(fields: [departmentId], references: [id])
+  type          BudgetType   // OPEX, CAPEX
+  year          Int
+  version       Int          @default(1) // 版本号（调整后递增）
+  parentId      String?      // 调整前版本 ID
+  totalAmount   Decimal      @db.Decimal(18, 2)
+  usedAmount    Decimal      @default(0) @db.Decimal(18, 2)
+  frozenAmount  Decimal      @default(0) @db.Decimal(18, 2) // 占用金额
+  status        BudgetStatus @default(DRAFT)
+  items         BudgetItem[]
+  approvals     ApprovalFlow[]
+  purchases     PurchaseRequest[]
+  adjustments   BudgetAdjustment[]
+  creatorId     String
+  remark        String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([budgetNo])
+  @@index([departmentId])
+  @@index([year])
+  @@index([status])
+}
+
+model BudgetItem {
+  id            String   @id @default(uuid())
+  budgetId      String
+  budget        Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  name          String   // 采购名称
+  category      String   // 费用类别
+  specification String?  // 规格型号
+  function      String?  // 功能描述
+  unitPrice     Decimal  @db.Decimal(18, 2)
+  quantity      Int
+  totalAmount   Decimal  @db.Decimal(18, 2)
+  usedAmount    Decimal  @default(0) @db.Decimal(18, 2)
+  frozenAmount  Decimal  @default(0) @db.Decimal(18, 2)
+  monthlyPlan   Json?    // { "1": 100, "2": 200, ... "12": 150 }
+  project       String?
+  purpose       String?
+  supplier      String?
+  deliveryDate  DateTime?
+  sortOrder     Int      @default(0)
+
+  @@index([budgetId])
+}
+
+model BudgetAdjustment {
+  id            String   @id @default(uuid())
+  budgetId      String
+  budget        Budget   @relation(fields: [budgetId], references: [id])
+  adjustNo      String   @unique // ADJ-2026-001
+  originalAmount Decimal @db.Decimal(18, 2)
+  adjustedAmount Decimal @db.Decimal(18, 2)
+  reason        String
+  items         Json     // 调整明细快照
+  status        AdjustStatus @default(PENDING)
+  creatorId     String
+  createdAt     DateTime @default(now())
+
+  @@index([budgetId])
+  @@index([adjustNo])
+}
+
+// ==================== 采购管理 ====================
+
+model PurchaseRequest {
+  id            String        @id @default(uuid())
+  requestNo     String        @unique // PR-2026-001
+  applicantId   String
+  departmentId  String
+  budgetId      String
+  budget        Budget        @relation(fields: [budgetId], references: [id])
+  budgetItemId  String?
+  items         PurchaseItem[]
+  totalAmount   Decimal       @db.Decimal(18, 2)
+  purpose       String
+  urgencyLevel  UrgencyLevel  @default(NORMAL)
+  status        PurchaseStatus @default(DRAFT)
+  currentStep   Int           @default(0)
+  approvals     ApprovalFlow[]
+  attachments   Attachment[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([requestNo])
+  @@index([budgetId])
+  @@index([status])
+}
+
+model PurchaseItem {
+  id            String          @id @default(uuid())
+  requestId     String
+  request       PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  name          String
+  specification String?
+  quantity      Int
+  unitPrice     Decimal         @db.Decimal(18, 2)
+  totalAmount   Decimal         @db.Decimal(18, 2)
+  supplier      String?
+  deliveryDate  DateTime?
+  remark        String?
+
+  @@index([requestId])
+}
+
+// ==================== 工作流与审批 ====================
+
+model WorkflowTemplate {
+  id          String   @id @default(uuid())
+  name        String   // "预算审批流程"、"采购审批流程"
+  type        String   // BUDGET_APPROVAL, PURCHASE_APPROVAL, ADJUSTMENT_APPROVAL
+  steps       Json     // 步骤定义（角色、条件、并行/串行）
+  conditions  Json?    // 触发条件（如金额>100 万需总经理审批）
+  isActive    Boolean  @default(true)
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+}
+
+model ApprovalFlow {
+  id            String    @id @default(uuid())
+  templateId    String?
+  targetType    String    // BUDGET, PURCHASE, ADJUSTMENT
+  targetId      String    // 关联的预算/采购/调整 ID
+  budget        Budget?   @relation(fields: [targetId], references: [id])
+  purchase      PurchaseRequest? @relation(fields: [targetId], references: [id])
+  steps         ApprovalStep[]
+  currentStep   Int       @default(1)
+  status        ApprovalStatus @default(PENDING)
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([targetId])
+  @@index([status])
+}
+
+model ApprovalStep {
+  id          String       @id @default(uuid())
+  flowId      String
+  flow        ApprovalFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  stepOrder   Int
+  stepName    String       // "部门负责人审批"
+  approverId  String?      // 具体审批人
+  approverRole String?     // 或按角色匹配
+  action      ApprovalAction? // APPROVE, REJECT, null(待处理)
+  comment     String?
+  operatedAt  DateTime?
+
+  @@index([flowId])
+  @@index([approverId])
+}
+
+// ==================== 数据导入（三单关联） ====================
+
+model PurchaseOrder {
+  id            String   @id @default(uuid())
+  orderNo       String   @unique
+  supplier      String
+  amount        Decimal  @db.Decimal(18, 2)
+  orderDate     DateTime
+  status        String
+  budgetNo      String?
+  mappingId     String?
+  importBatchId String
+  createdAt     DateTime @default(now())
+
+  @@index([orderNo])
+  @@index([budgetNo])
+}
+
+model Settlement {
+  id            String   @id @default(uuid())
+  settlementNo  String   @unique
+  invoiceNo     String?
+  amount        Decimal  @db.Decimal(18, 2)
+  settleDate    DateTime
+  supplier      String
+  budgetNo      String?
+  mappingId     String?
+  importBatchId String
+  createdAt     DateTime @default(now())
+
+  @@index([settlementNo])
+  @@index([budgetNo])
+}
+
+model DataMapping {
+  id              String   @id @default(uuid())
+  budgetNo        String?
+  purchaseOrderNo String?
+  settlementNo    String?
+  matchStatus     MatchStatus // FULL, PARTIAL, NONE
+  amountDiff      Decimal?  @db.Decimal(18, 2)
+  verifiedAt      DateTime?
+  verifiedBy      String?
+  createdAt       DateTime @default(now())
+
+  @@index([budgetNo])
+  @@index([matchStatus])
+}
+
+// ==================== 通知系统 ====================
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      NotificationType // APPROVAL_PENDING, BUDGET_WARNING, SYSTEM
+  title     String
+  content   String
+  link      String?  // 跳转链接
+  isRead    Boolean  @default(false)
+  channels  String[] // ["in_app", "email", "wechat"]
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+// ==================== 审计日志 ====================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  userName   String
+  action     String   // CREATE, UPDATE, DELETE, APPROVE, REJECT, LOGIN, EXPORT
+  module     String   // budget, purchase, approval, user, system
+  targetType String?
+  targetId   String?
+  oldValue   Json?    // 修改前的值
+  newValue   Json?    // 修改后的值
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([module])
+  @@index([createdAt])
+}
+
+// ==================== 附件管理 ====================
+
+model Attachment {
+  id         String          @id @default(uuid())
+  fileName   String
+  fileSize   Int
+  mimeType   String
+  storagePath String
+  uploaderId String
+  targetType String?         // PURCHASE, BUDGET
+  targetId   String?
+  request    PurchaseRequest? @relation(fields: [targetId], references: [id])
+  createdAt  DateTime        @default(now())
+
+  @@index([targetId])
+  @@index([uploaderId])
+}
+
+// ==================== 枚举类型 ====================
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  LOCKED
+}
+
+enum DeptStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BudgetType {
+  OPEX
+  CAPEX
+}
+
+enum BudgetStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  ADJUSTED
+  CLOSED
+}
+
+enum AdjustStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PurchaseStatus {
+  DRAFT
+  PENDING
+  IN_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum UrgencyLevel {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ApprovalStatus {
+  PENDING
+  IN_PROGRESS
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ApprovalAction {
+  APPROVE
+  REJECT
+  WITHDRAW
+}
+
+enum MatchStatus {
+  FULL
+  PARTIAL
+  NONE
+}
+
+enum NotificationType {
+  APPROVAL_PENDING
+  APPROVAL_RESULT
+  BUDGET_WARNING
+  BUDGET_OVERRUN
+  SYSTEM
+  REPORT_READY
+}
