@@ -9,6 +9,9 @@ COPY package*.json ./
 # 安装依赖
 RUN npm ci --only=production && npm cache clean --force
 
+# 复制 prisma schema
+COPY src/prisma/schema.prisma ./prisma/schema.prisma
+
 # 复制源代码
 COPY . .
 
