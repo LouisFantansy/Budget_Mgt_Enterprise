@@ -17,14 +17,17 @@ export class BudgetService {
     const count = await this.prisma.budget.count();
     const budgetNo = `BG-${year}-${String(count + 1).padStart(3, '0')}`;
 
+    // 移除 departmentId，使用 department.connect
+    const { departmentId, ...restData } = budgetData as any;
+
     // 创建预算及明细
     const budget = await this.prisma.budget.create({
       data: {
-        ...budgetData,
+        ...restData,
         totalAmount: parseFloat(budgetData.totalAmount),
         budgetNo,
         department: {
-          connect: { id: budgetData.departmentId }
+          connect: { id: departmentId }
         },
         items: items && items.length > 0 ? {
           create: items.map((item, index) => ({
