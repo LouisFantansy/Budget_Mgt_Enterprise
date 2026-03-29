@@ -1,16 +1,15 @@
 #!/bin/bash
 
 ################################################################################
-# 企业级预算管理系统 - 一键部署脚本 (付费镜像版)
-# 适用于 Ubuntu 22.04 LTS
+# 企业级预算管理系统 - 一键部署脚本 (精简版)
+# 适用于 Ubuntu 22.04 LTS - Docker 已安装环境
 # 
 # 使用方法:
-#   curl -O https://raw.githubusercontent.com/LouisFantansy/Budget_Mgt_Enterprise/main/deploy.sh
 #   chmod +x deploy.sh
 #   sudo ./deploy.sh
 #
 # 作者：Louis
-# 版本：1.2.0 (使用付费镜像加速)
+# 版本：1.3.0
 ################################################################################
 
 set -e
@@ -29,143 +28,115 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 trap 'log_error "部署失败"; exit 1' ERR
 
-# ===== 用户配置区域 =====
-DOCKER_MIRROR="5oo6hewxl4otsdb6id.xuanyuan.run"
-# =========================
-
 ################################################################################
-# 步骤 1: 系统检查和更新
+# 步骤 1: 检查 Docker 并配置
 ################################################################################
-log_info "步骤 1/8: 检查系统环境和更新..."
+log_info "步骤 1/6: 检查 Docker 环境..."
 
 if [ "$EUID" -ne 0 ]; then 
     log_error "请使用 sudo 运行此脚本"
     exit 1
 fi
 
-apt update -y
-apt upgrade -y
-apt install -y curl git vim wget htop net-tools unzip gnupg lsb-release ca-certificates
+# 检查 Docker 是否已安装
+if ! command -v docker &> /dev/null; then
+    log_error "Docker 未安装，请先安装 Docker"
+    exit 1
+fi
 
-log_success "系统更新完成"
+# 检查 Docker 服务状态
+if ! systemctl is-active docker &> /dev/null; then
+    log_info "启动 Docker 服务..."
+    systemctl start docker
+    systemctl enable docker
+fi
 
-################################################################################
-# 步骤 2: 配置防火墙
-################################################################################
-log_info "步骤 2/8: 配置防火墙..."
-ufw --force enable
-ufw allow 22/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
-log_success "防火墙配置完成"
-
-################################################################################
-# 步骤 3: 配置 Docker 镜像加速
-################################################################################
-log_info "步骤 3/8: 配置 Docker 镜像加速..."
-
-# 创建 Docker 配置目录
-mkdir -p /etc/docker
-
-# 配置镜像加速器（用于后续拉取镜像）
-cat > /etc/docker/daemon.json << EOF
-{
-  "registry-mirrors": [
-    "https://${DOCKER_MIRROR}"
-  ],
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "10m",
-    "max-file": "3"
-  }
-}
-EOF
-
-log_info "已配置镜像加速器：https://${DOCKER_MIRROR}"
-
-################################################################################
-# 步骤 4: 安装 Docker (使用付费镜像)
-################################################################################
-log_info "步骤 4/8: 安装 Docker 环境..."
-
-# 尝试多种方式安装
-install_docker() {
-    # 方式1: 使用付费镜像源安装
-    log_info "使用付费镜像源安装 Docker..."
-    
-    # 添加 Docker 官方 GPG 密钥
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg 2>/dev/null || \
-    curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-    
-    # 添加 Docker 仓库
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-    
-    # 替换为付费镜像源
-    sed -i "s|https://download.docker.com|https://${DOCKER_MIRROR}|g" /etc/apt/sources.list.d/docker.list 2>/dev/null || true
-    
-    apt update -y
-    
-    # 安装 Docker
-    apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin || apt install -y docker.io docker-compose
-    
-    return 0
-}
-
-install_docker
-
-# 重启 Docker 服务
-systemctl daemon-reload
-systemctl restart docker
-systemctl enable docker
-
-# 验证
 docker --version
-docker-compose --version
+docker-compose --version 2>/dev/null || docker-compose version
 
-log_success "Docker 环境安装完成"
+log_success "Docker 环境就绪"
 
 ################################################################################
-# 步骤 5: 克隆项目代码 (使用镜像加速)
+# 步骤 2: 配置防火墙（可选）
 ################################################################################
-log_info "步骤 5/8: 克隆项目代码..."
+log_info "步骤 2/6: 配置防火墙..."
+
+read -p "是否配置防火墙？(y/n): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    ufw --force enable
+    ufw allow 22/tcp
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    log_success "防火墙配置完成"
+else
+    log_info "跳过防火墙配置"
+fi
+
+################################################################################
+# 步骤 3: 拉取项目代码 (SSH方式)
+################################################################################
+log_info "步骤 3/6: 拉取项目代码..."
 
 cd /opt
 
+# 检查是否已存在
 if [ -d "Budget_Mgt_Enterprise" ]; then
-    log_warning "检测到旧项目，备份并重新克隆..."
-    mv Budget_Mgt_Enterprise Budget_Mgt_Enterprise_backup_$(date +%Y%m%d_%H%M%S)
+    log_warning "项目已存在，是否更新？(y/n): "
+    read -p "" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        cd Budget_Mgt_Enterprise
+        git pull origin main
+        log_success "项目更新完成"
+    else
+        log_info "使用现有项目"
+    fi
+else
+    # 使用 SSH 克隆
+    log_info "使用 SSH 克隆项目..."
+    git clone git@github.com:LouisFantansy/Budget_Mgt_Enterprise.git
+    cd Budget_Mgt_Enterprise
+    log_success "项目代码克隆完成"
 fi
 
-# 尝试多种克隆方式
-log_info "使用镜像加速克隆..."
-git clone https://github.com/LouisFantansy/Budget_Mgt_Enterprise.git || \
-git clone https://${DOCKER_MIRROR}/https://github.com/LouisFantansy/Budget_Mgt_Enterprise.git || \
-git clone https://ghproxy.com/https://github.com/LouisFantansy/Budget_Mgt_Enterprise.git
-
-cd Budget_Mgt_Enterprise
-
-log_success "项目代码克隆完成"
-
 ################################################################################
-# 步骤 6: 生成环境变量配置
+# 步骤 4: 生成环境变量配置
 ################################################################################
-log_info "步骤 6/8: 生成环境变量配置..."
+log_info "步骤 4/6: 生成环境变量配置..."
 
 # 生成随机密钥
 JWT_SECRET=$(openssl rand -hex 32)
 POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 20)
 REDIS_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
 
-cat > .env << EOF
+# 检查 .env 是否存在
+if [ -f ".env" ]; then
+    log_warning ".env 已存在，是否覆盖？(y/n): "
+    read -p "" -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_info "使用现有配置"
+    else
+        cat > .env << EOF
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 JWT_SECRET=${JWT_SECRET}
 REDIS_PASSWORD=${REDIS_PASSWORD}
 ADMIN_INITIAL_PASSWORD=Admin@123456
 EOF
-
-chmod 600 .env
-
-log_success "环境变量配置生成完成"
+        chmod 600 .env
+        log_success "环境变量配置已更新"
+    fi
+else
+    cat > .env << EOF
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+JWT_SECRET=${JWT_SECRET}
+REDIS_PASSWORD=${REDIS_PASSWORD}
+ADMIN_INITIAL_PASSWORD=Admin@123456
+EOF
+    chmod 600 .env
+    log_success "环境变量配置生成完成"
+fi
 
 log_warning "=============================================="
 log_warning "重要信息 - 请复制保存："
@@ -177,39 +148,41 @@ log_warning "管理员密码：Admin@123456"
 log_warning "=============================================="
 
 ################################################################################
-# 步骤 7: 启动服务
+# 步骤 5: 启动服务
 ################################################################################
-log_info "步骤 7/8: 启动所有服务..."
+log_info "步骤 5/6: 启动所有服务..."
 
-# 检查配置
-if [ ! -f "docker-compose.prod.yml" ]; then
-    log_warning "未找到生产配置，使用默认配置..."
-    cp docker-compose.yml docker-compose.prod.yml 2>/dev/null || true
+# 预拉取镜像（可选）
+read -p "是否预拉取 Docker 镜像？(y/n): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    log_info "预拉取镜像（可能需要几分钟）..."
+    docker pull postgres:16-alpine 2>/dev/null || true
+    docker pull redis:7-alpine 2>/dev/null || true
+    docker pull nginx:alpine 2>/dev/null || true
 fi
 
-# 预拉取镜像（使用镜像加速）
-log_info "预拉取 Docker 镜像（可能需要几分钟）..."
-
-# 设置镜像拉取策略
-export DOCKER_REGISTRY_MIRROR="https://${DOCKER_MIRROR}"
-
-# 拉取基础镜像
-docker pull postgres:16-alpine || true
-docker pull redis:7-alpine || true
-docker pull nginx:alpine || true
+# 检查配置文件
+if [ ! -f "docker-compose.prod.yml" ]; then
+    if [ -f "docker-compose.yml" ]; then
+        cp docker-compose.yml docker-compose.prod.yml
+        log_info "已创建生产配置 docker-compose.prod.yml"
+    fi
+fi
 
 # 启动服务
+log_info "启动服务..."
 docker-compose -f docker-compose.prod.yml up -d || docker-compose up -d
 
-sleep 30
+sleep 20
 docker-compose ps
 
 log_success "服务启动完成"
 
 ################################################################################
-# 步骤 8: 数据库初始化
+# 步骤 6: 数据库初始化
 ################################################################################
-log_info "步骤 8/8: 等待数据库就绪..."
+log_info "步骤 6/6: 等待数据库就绪..."
 
 # 等待数据库就绪
 for i in {1..30}; do
@@ -221,7 +194,11 @@ for i in {1..30}; do
     sleep 2
 done
 
-log_success "数据库就绪"
+# 初始化数据库（如果需要）
+if [ -d "server" ] && [ -f "server/prisma/seed.ts" ]; then
+    log_info "检查是否需要初始化数据..."
+    # 可以在这里添加数据初始化命令
+fi
 
 ################################################################################
 # 部署完成
@@ -232,7 +209,7 @@ log_success "🎉 部署完成！"
 log_success "=========================================="
 echo ""
 
-SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || echo "您的服务器IP")
+SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
 
 log_info "访问地址："
 log_info "  前端：http://${SERVER_IP}"
@@ -249,7 +226,7 @@ log_warning "重要提示："
 log_warning "1. 请记录上面显示的数据库密码"
 log_warning "2. 首次登录后修改管理员密码"
 log_warning "3. 查看日志：cd /opt/Budget_Mgt_Enterprise && docker-compose logs -f"
-log_warning "4. 备份命令：cd /opt/Budget_Mgt_Enterprise && docker exec budget_postgres pg_dump -U postgres budget_management > backup.sql"
+log_warning "4. 重启服务：cd /opt/Budget_Mgt_Enterprise && docker-compose restart"
 echo ""
 
 log_success "部署成功！祝您使用愉快！"
