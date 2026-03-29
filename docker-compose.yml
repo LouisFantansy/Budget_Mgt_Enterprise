@@ -1,0 +1,61 @@
+# 生产环境 Docker Compose 配置（简化版）
+version: '3.8'
+
+services:
+  # 前端
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: budget_frontend
+    restart: always
+    networks:
+      - budget_network
+
+  # PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: budget_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: budget_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - budget_network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: budget_redis
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - budget_network
+
+  # Nginx
+  nginx:
+    image: nginx:alpine
+    container_name: budget_nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./dist:/usr/share/nginx/html:ro
+    depends_on:
+      - frontend
+    networks:
+      - budget_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  budget_network:
+    driver: bridge
