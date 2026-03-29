@@ -14,6 +14,7 @@ async function main() {
       id: 'dept-headquarters',
       name: '总部',
       code: 'HQ',
+      level: 1,
       status: 'ACTIVE',
     },
   });
@@ -25,6 +26,7 @@ async function main() {
       id: 'dept-it',
       name: '信息技术部',
       code: 'IT',
+      level: 2,
       parentId: headquarters.id,
       status: 'ACTIVE',
     },
@@ -37,6 +39,7 @@ async function main() {
       id: 'dept-finance',
       name: '财务部',
       code: 'FIN',
+      level: 2,
       parentId: headquarters.id,
       status: 'ACTIVE',
     },
@@ -76,7 +79,7 @@ async function main() {
       usedAmount: 0,
       frozenAmount: 0,
       status: 'APPROVED',
-      description: '用于购买办公电脑、服务器等设备',
+      creatorId: admin.id,
     },
   });
 
