@@ -175,7 +175,11 @@ log_info "启动服务..."
 
 # 先停止并清理旧容器（避免版本兼容性问题）
 docker-compose down --remove-orphans 2>/dev/null || true
-docker rm -f budget_frontend budget_postgres budget_redis budget_nginx 2>/dev/null || true
+docker rm -f budget_frontend budget_postgres budget_redis budget_nginx budget_backend 2>/dev/null || true
+
+# 强制重新构建前端和后端镜像
+log_info "重新构建 Docker 镜像..."
+docker-compose build --no-cache frontend backend
 
 # 使用 docker-compose 或 docker compose 命令
 if command -v docker &> /dev/null && docker compose version &>/dev/null; then
