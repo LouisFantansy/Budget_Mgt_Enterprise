@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore, User } from '../store/authStore'
 import { Shield } from 'lucide-react'
+import api from '../utils/api'
 
 export function Login() {
   const [username, setUsername] = useState('')
@@ -15,26 +16,34 @@ export function Login() {
     e.preventDefault()
     setError('')
     setLoading(true)
-
-    // Demo login - in production, this would be an API call
-    setTimeout(() => {
-      const mockUsers: Record<string, User> = {
-        'admin': { id: '1', username: 'admin', name: '系统管理员', role: 'admin', department: 'IT部' },
-        'budget': { id: '2', username: 'budget', name: '张预算', role: 'budget_manager', department: '财务部' },
-        'dept': { id: '3', username: 'dept', name: '李部门', role: 'department_head', department: '研发部' },
-        'finance': { id: '4', username: 'finance', name: '王财务', role: 'finance', department: '财务部' },
-        'gm': { id: '5', username: 'gm', name: '赵总', role: 'general_manager', department: '总经理办公室' },
-      }
-
-      const user = mockUsers[username]
-      if (user && password === '123456') {
+  
+    try {
+      const response = await api.post('/auth/login', { username, password })
+        
+      if (response.code === 200 && response.data) {
+        // 保存 token
+        localStorage.setItem('token', response.data.token)
+        localStorage.setItem('refreshToken', response.data.refreshToken)
+          
+        // 构建用户对象
+        const user: User = {
+          id: response.data.user.id,
+          username: response.data.user.username,
+          name: response.data.user.name,
+          role: response.data.user.roles?.[0] || 'user',
+          department: response.data.user.department || ''
+        }
+          
         login(user)
         navigate('/')
       } else {
-        setError('用户名或密码错误')
+        setError(response.message || '登录失败')
       }
+    } catch (error: any) {
+      setError(error.response?.data?.message || '登录失败，请检查网络连接')
+    } finally {
       setLoading(false)
-    }, 500)
+    }
   }
 
   const roleLabels: Record<string, string> = {
@@ -89,11 +98,10 @@ export function Login() {
         </form>
 
         <div className="login-demo">
-          <p>演示账号（密码均为 123456）：</p>
+          <p>默认管理员账号：</p>
           <div className="demo-users">
-            {Object.entries(roleLabels).map(([role, label]) => (
-              <span key={role} className="tag tag-primary">{label}</span>
-            ))}
+            <span className="tag tag-primary">用户名：admin</span>
+            <span className="tag tag-success">密码：admin123</span>
           </div>
         </div>
       </div>
