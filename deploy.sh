@@ -172,10 +172,29 @@ fi
 
 # 启动服务
 log_info "启动服务..."
-docker-compose -f docker-compose.prod.yml up -d || docker-compose up -d
 
-sleep 20
-docker-compose ps
+# 先停止并清理旧容器（避免版本兼容性问题）
+docker-compose down --remove-orphans 2>/dev/null || true
+docker rm -f budget_frontend budget_postgres budget_redis budget_nginx 2>/dev/null || true
+
+# 使用 docker-compose 或 docker compose 命令
+if command -v docker &> /dev/null && docker compose version &>/dev/null; then
+    log_info "使用新版 docker compose 命令..."
+    docker compose -f docker-compose.prod.yml up -d || docker compose up -d
+else
+    log_info "使用 docker-compose 命令..."
+    docker-compose -f docker-compose.prod.yml up -d || docker-compose up -d
+fi
+
+# 等待服务启动
+sleep 15
+
+# 检查容器状态
+if command -v docker &> /dev/null && docker compose version &>/dev/null; then
+    docker compose ps
+else
+    docker-compose ps
+fi
 
 log_success "服务启动完成"
 
