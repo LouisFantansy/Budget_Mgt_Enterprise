@@ -20,24 +20,24 @@ export function Login() {
     try {
       const response = await api.post('/auth/login', { username, password })
         
-      if (response.code === 200 && response.data) {
+      if (response.data && response.data.code === 200) {
         // 保存 token
-        localStorage.setItem('token', response.data.token)
-        localStorage.setItem('refreshToken', response.data.refreshToken)
+        localStorage.setItem('token', response.data.data.token)
+        localStorage.setItem('refreshToken', response.data.data.refreshToken)
           
         // 构建用户对象
         const user: User = {
-          id: response.data.user.id,
-          username: response.data.user.username,
-          name: response.data.user.name,
-          role: response.data.user.roles?.[0] || 'user',
-          department: response.data.user.department || ''
+          id: response.data.data.user.id,
+          username: response.data.data.user.username,
+          name: response.data.data.user.name,
+          role: response.data.data.user.roles?.[0] || 'user',
+          department: response.data.data.user.department || ''
         }
           
         login(user)
         navigate('/')
       } else {
-        setError(response.message || '登录失败')
+        setError(response.data?.message || '登录失败')
       }
     } catch (error: any) {
       setError(error.response?.data?.message || '登录失败，请检查网络连接')
