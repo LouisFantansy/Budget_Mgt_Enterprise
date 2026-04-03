@@ -111,43 +111,43 @@ export const reportApi = {
    * 获取 Dashboard 数据
    */
   getDashboard: (): Promise<DashboardApiResponse> => {
-    return apiClient.get('/reports/dashboard');
+    return apiClient.get('/analysis/dashboard');
   },
-
+  
   /**
-   * 获取部门排名
+   * 获取部閨排名
    */
   getDepartmentRanking: (params?: DepartmentRankingQuery): Promise<DepartmentRankingApiResponse> => {
-    return apiClient.get('/reports/department-ranking', { params });
+    return apiClient.get('/analysis/department-ranking', { params });
   },
-
+  
   /**
    * 获取月度趋势
    */
   getMonthlyTrend: (params?: MonthlyTrendQuery): Promise<MonthlyTrendApiResponse> => {
-    return apiClient.get('/reports/monthly-trend', { params });
+    return apiClient.get('/analysis/monthly-trend', { params });
   },
-
+  
   /**
    * 获取分类分析
    */
   getCategoryAnalysis: (params?: CategoryAnalysisQuery): Promise<CategoryAnalysisApiResponse> => {
-    return apiClient.get('/reports/category-analysis', { params });
+    return apiClient.get('/analysis/category-analysis', { params });
   },
-
+  
   /**
    * 导出预算报表
    */
   exportBudgets: async (params?: ExportQuery): Promise<void> => {
     const filename = `预算报表_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    await download('/reports/export/budgets', filename);
+    await download('/analysis/export/budgets', filename);
   },
-
+  
   /**
    * 导出分析报表
    */
   exportAnalysis: async (params?: ExportQuery): Promise<void> => {
     const filename = `分析报表_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    await download('/reports/export/analysis', filename);
+    await download('/analysis/export/analysis', filename);
   },
 };

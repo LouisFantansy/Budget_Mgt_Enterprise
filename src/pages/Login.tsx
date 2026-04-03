@@ -18,26 +18,28 @@ export function Login() {
     setLoading(true)
   
     try {
-      const response = await api.post('/auth/login', { username, password })
-        
-      if (response.data && response.data.code === 200) {
+      const response = await api.post('/auth/login', { username, password }) as any
+      
+      // api.ts 拦截器已经返回 response.data，所以这里 response 就是后端返回的数据
+      // 后端返回格式: { code: 200, message: 'success', data: { token, user, ... } }
+      if (response && response.code === 200) {
         // 保存 token
-        localStorage.setItem('token', response.data.data.token)
-        localStorage.setItem('refreshToken', response.data.data.refreshToken)
+        localStorage.setItem('token', response.data.token)
+        localStorage.setItem('refreshToken', response.data.refreshToken)
           
         // 构建用户对象
         const user: User = {
-          id: response.data.data.user.id,
-          username: response.data.data.user.username,
-          name: response.data.data.user.name,
-          role: (response.data.data.user.roles?.[0] as User['role']) || 'department_head',
-          department: response.data.data.user.department || ''
+          id: response.data.user.id,
+          username: response.data.user.username,
+          name: response.data.user.name,
+          role: (response.data.user.roles?.[0] as User['role']) || 'department_head',
+          department: response.data.user.department || ''
         }
           
         login(user)
         navigate('/')
       } else {
-        setError(response.data?.message || '登录失败')
+        setError(response?.message || '登录失败')
       }
     } catch (error: any) {
       setError(error.response?.data?.message || '登录失败，请检查网络连接')
