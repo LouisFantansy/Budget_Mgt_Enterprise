@@ -1,75 +1,81 @@
 import { useState, useRef } from 'react'
-import { Upload, FileText, Download, AlertCircle, CheckCircle } from 'lucide-react'
-import * as XLSX from 'xlsx'
-
-interface Settlement {
-  settlementNo: string
-  invoiceNo: string
-  amount: number
-  date: string
-  supplier: string
-  budgetCode: string
-}
+import { Upload, FileText, Download, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
+import { importExportApi } from '../api/modules/import-export.api'
+import type { ImportResult } from '../api/modules/import-export.api'
 
 export function SettlementImport() {
   const [fileName, setFileName] = useState('')
-  const [data, setData] = useState<Settlement[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
     setFileName(file.name)
     setError('')
     setSuccess('')
+    setImportResult(null)
 
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      try {
-        const workbook = XLSX.read(event.target?.result, { type: 'binary' })
-        const sheetName = workbook.SheetNames[0]
-        const sheet = workbook.Sheets[sheetName]
-        const jsonData = XLSX.utils.sheet_to_json(sheet)
-
-        const settlements: Settlement[] = jsonData.map((row: any) => ({
-          settlementNo: row['结算单号'] || row['settlementNo'] || '',
-          invoiceNo: row['发票号'] || row['invoiceNo'] || '',
-          amount: Number(row['金额'] || row['amount'] || 0),
-          date: row['日期'] || row['date'] || '',
-          supplier: row['供应商'] || row['supplier'] || '',
-          budgetCode: row['预算编号'] || row['budgetCode'] || '',
-        }))
-
-        setData(settlements)
-        setSuccess(`成功导入 ${settlements.length} 条财务结算单`)
-      } catch (err) {
-        setError('文件解析失败，请检查文件格式')
-        setData([])
-      }
-    }
-    reader.readAsBinaryString(file)
-  }
-
-  const handleImport = () => {
-    if (data.length === 0) return
-    console.log('Importing data:', data)
-    setSuccess(`成功导入 ${data.length} 条财务结算单到系统`)
-    setData([])
-    setFileName('')
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
-
-  const downloadTemplate = () => {
-    const template = [
-      { 结算单号: 'S2024001', 发票号: 'INV2024001', 金额: 50000, 日期: '2024-01-15', 供应商: '供应商A', 预算编号: 'BUD-2024-001' },
+    // Validate file type
+    const validTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
     ]
-    const ws = XLSX.utils.json_to_sheet(template)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Template')
-    XLSX.writeFile(wb, '财务结算单导入模板.xlsx')
+    if (!validTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls)$/i)) {
+      setError('请上传 Excel 文件 (.xlsx 或 .xls)')
+      return
+    }
+
+    setUploading(true)
+    setUploadProgress(0)
+
+    try {
+      const result = await importExportApi.importSettlements(file, (percent) => {
+        setUploadProgress(percent)
+      })
+      
+      setImportResult(result)
+      
+      if (result.success) {
+        if (result.failedRows > 0) {
+          setSuccess(`部分导入成功：成功 ${result.successRows} 条，失败 ${result.failedRows} 条`)
+        } else {
+          setSuccess(`成功导入 ${result.successRows} 条财务结算单`)
+        }
+      } else {
+        setError(`导入失败：${result.failedRows} 条数据存在问题`)
+      }
+    } catch (err: any) {
+      console.error('Import failed:', err)
+      setError(err.response?.data?.message || '文件导入失败，请检查文件格式')
+    } finally {
+      setUploading(false)
+      setUploadProgress(0)
+    }
+  }
+
+  const handleDownloadTemplate = async () => {
+    try {
+      await importExportApi.downloadTemplate('settlements')
+    } catch (err: any) {
+      console.error('Download template failed:', err)
+      setError('下载模板失败')
+    }
+  }
+
+  const handleClear = () => {
+    setFileName('')
+    setError('')
+    setSuccess('')
+    setImportResult(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
 
   return (
@@ -81,65 +87,145 @@ export function SettlementImport() {
         </div>
       </div>
 
+      {/* Upload Area */}
       <div className="card">
         <div className="card-header">
           <h3 className="card-title">上传文件</h3>
-          <button className="btn btn-secondary" onClick={downloadTemplate}>
+          <button className="btn btn-secondary" onClick={handleDownloadTemplate}>
             <Download size={16} /> 下载模板
           </button>
         </div>
 
-        <div className="upload-area" onClick={() => fileInputRef.current?.click()}>
-          <Upload size={48} />
-          <p>点击或拖拽文件到此处上传</p>
-          <span>支持 .xlsx, .xls 格式</span>
-          <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileUpload} style={{ display: 'none' }} />
+        <div 
+          className={`upload-area ${uploading ? 'disabled' : ''}`} 
+          onClick={() => !uploading && fileInputRef.current?.click()}
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="spinner" size={48} />
+              <p>正在导入... {uploadProgress}%</p>
+              <div className="progress-bar-container">
+                <div className="progress-bar" style={{ width: `${uploadProgress}%` }} />
+              </div>
+            </>
+          ) : (
+            <>
+              <Upload size={48} />
+              <p>点击或拖拽文件到此处上传</p>
+              <span>支持 .xlsx, .xls 格式</span>
+            </>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+            disabled={uploading}
+          />
         </div>
 
         {fileName && (
           <div className="file-info">
             <FileText size={20} />
             <span>{fileName}</span>
+            {!uploading && (
+              <button className="btn-link" onClick={handleClear}>清除</button>
+            )}
           </div>
         )}
 
-        {error && <div className="alert alert-error"><AlertCircle size={16} /> {error}</div>}
-        {success && <div className="alert alert-success"><CheckCircle size={16} /> {success}</div>}
+        {error && (
+          <div className="alert alert-error">
+            <AlertCircle size={16} /> {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="alert alert-success">
+            <CheckCircle size={16} /> {success}
+          </div>
+        )}
       </div>
 
-      {data.length > 0 && (
+      {/* Import Result */}
+      {importResult && (
         <div className="card mt-4">
           <div className="card-header">
-            <h3 className="card-title">数据预览</h3>
-            <button className="btn btn-primary" onClick={handleImport}>确认导入</button>
+            <h3 className="card-title">导入结果</h3>
           </div>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>结算单号</th>
-                <th>发票号</th>
-                <th>金额</th>
-                <th>日期</th>
-                <th>供应商</th>
-                <th>预算编号</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.slice(0, 10).map((row, index) => (
-                <tr key={index}>
-                  <td>{row.settlementNo}</td>
-                  <td>{row.invoiceNo}</td>
-                  <td>¥{row.amount.toLocaleString()}</td>
-                  <td>{row.date}</td>
-                  <td>{row.supplier}</td>
-                  <td>{row.budgetCode || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {data.length > 10 && <div className="text-center text-secondary mt-4">... 共 {data.length} 条数据</div>}
+          <div className="result-summary">
+            <div className="result-item">
+              <span className="result-label">总行数</span>
+              <span className="result-value">{importResult.totalRows}</span>
+            </div>
+            <div className="result-item success">
+              <span className="result-label">成功</span>
+              <span className="result-value">{importResult.successRows}</span>
+            </div>
+            <div className="result-item error">
+              <span className="result-label">失败</span>
+              <span className="result-value">{importResult.failedRows}</span>
+            </div>
+          </div>
+
+          {/* Error List */}
+          {importResult.errors && importResult.errors.length > 0 && (
+            <div className="error-list">
+              <h4>错误详情</h4>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>行号</th>
+                    <th>列名</th>
+                    <th>错误信息</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importResult.errors.slice(0, 20).map((err, index) => (
+                    <tr key={index}>
+                      <td>第 {err.row} 行</td>
+                      <td>{err.column}</td>
+                      <td className="text-danger">{err.message}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {importResult.errors.length > 20 && (
+                <div className="text-center text-secondary mt-4">
+                  ... 共 {importResult.errors.length} 条错误
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
+
+      {/* Instructions */}
+      <div className="card mt-4">
+        <div className="card-header">
+          <h3 className="card-title">导入说明</h3>
+        </div>
+        <div className="import-instructions">
+          <ol>
+            <li>点击"下载模板"获取标准导入模板</li>
+            <li>按照模板格式填写财务结算单数据</li>
+            <li>点击上传区域选择填写好的 Excel 文件</li>
+            <li>系统将自动验证并导入数据</li>
+            <li>如有错误，请根据错误提示修改后重新上传</li>
+          </ol>
+          <div className="instruction-note">
+            <strong>注意事项：</strong>
+            <ul>
+              <li>结算单号为必填项，且不能重复</li>
+              <li>金额必须为数字，且大于0</li>
+              <li>日期格式为：YYYY-MM-DD</li>
+              <li>供应商名称为必填项</li>
+              <li>如有关联的采购订单号，请确保系统中已存在</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

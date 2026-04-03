@@ -16,6 +16,7 @@ describe('AuthController', () => {
           useValue: {
             login: jest.fn(),
             register: jest.fn(),
+            validateUser: jest.fn(),
           },
         },
         {
@@ -36,12 +37,22 @@ describe('AuthController', () => {
   describe('login', () => {
     it('应该返回 token 和用户信息', async () => {
       const loginDto = { username: 'test', password: 'password' };
+      const mockUser = {
+        id: '1',
+        username: 'test',
+        name: 'Test User',
+        email: 'test@example.com',
+        avatar: null,
+        roles: [],
+        department: null,
+      };
       const result = { 
         token: 'jwt-token', 
         refreshToken: 'refresh-token',
         user: { id: '1', username: 'test', name: 'Test User', email: 'test@example.com', avatar: null, roles: [], permissions: [] } 
       };
 
+      jest.spyOn(authService, 'validateUser').mockResolvedValue(mockUser as any);
       jest.spyOn(authService, 'login').mockResolvedValue(result);
 
       expect(await controller.login(loginDto)).toEqual(result);

@@ -281,6 +281,14 @@ export enum NotificationType {
   REPORT_READY = 'REPORT_READY'
 }
 
+// ==================== 数据导入 ====================
+
+export enum MatchStatus {
+  FULL = 'FULL',
+  PARTIAL = 'PARTIAL',
+  NONE = 'NONE'
+}
+
 // ==================== 审计日志 ====================
 
 export interface AuditLog {

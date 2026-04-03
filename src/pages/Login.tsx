@@ -30,7 +30,7 @@ export function Login() {
           id: response.data.data.user.id,
           username: response.data.data.user.username,
           name: response.data.data.user.name,
-          role: response.data.data.user.roles?.[0] || 'user',
+          role: (response.data.data.user.roles?.[0] as User['role']) || 'department_head',
           department: response.data.data.user.department || ''
         }
           

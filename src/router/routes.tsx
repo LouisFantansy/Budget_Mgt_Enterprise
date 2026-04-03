@@ -20,6 +20,10 @@ const Analysis = lazy(() => import('../pages/Analysis').then(module => ({ defaul
 const Mapping = lazy(() => import('../pages/Mapping').then(module => ({ default: module.Mapping })));
 const DepartmentList = lazy(() => import('../pages/DepartmentList').then(module => ({ default: module.DepartmentList })));
 const Settings = lazy(() => import('../pages/Settings').then(module => ({ default: module.Settings })));
+// New pages for Task #9
+const AuditLog = lazy(() => import('../pages/AuditLog').then(module => ({ default: module.AuditLog })));
+const UserManagement = lazy(() => import('../pages/UserManagement').then(module => ({ default: module.UserManagement })));
+const RoleManagement = lazy(() => import('../pages/RoleManagement').then(module => ({ default: module.RoleManagement })));
 
 // 路由配置
 export const routes = [
@@ -116,6 +120,22 @@ export const routes = [
   {
     path: '/settings',
     element: <Settings />,
+    requiresAuth: true,
+  },
+  // New routes for Task #9
+  {
+    path: '/audit-logs',
+    element: <AuditLog />,
+    requiresAuth: true,
+  },
+  {
+    path: '/users',
+    element: <UserManagement />,
+    requiresAuth: true,
+  },
+  {
+    path: '/roles',
+    element: <RoleManagement />,
     requiresAuth: true,
   },
 ];

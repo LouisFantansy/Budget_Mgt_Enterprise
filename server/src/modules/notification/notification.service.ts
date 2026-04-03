@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from 'src/common/prisma/prisma.service';
+import { NotificationGateway } from './notification.gateway';
+import { EmailChannel } from './channels/email.channel';
 
 export interface CreateNotificationDto {
   userId: string;
@@ -12,13 +14,21 @@ export interface CreateNotificationDto {
 
 @Injectable()
 export class NotificationService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(NotificationService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private notificationGateway: NotificationGateway,
+    private emailChannel: EmailChannel,
+  ) {}
 
   /**
    * 创建通知
+   * 自动通过 WebSocket 推送，如果 channels 包含 email 则同时发送邮件
    */
   async createNotification(data: CreateNotificationDto) {
-    return this.prisma.notification.create({
+    // 1. 保存到数据库
+    const notification = await this.prisma.notification.create({
       data: {
         userId: data.userId,
         type: data.type as any,
@@ -28,6 +38,53 @@ export class NotificationService {
         channels: data.channels || ['in_app'],
       },
     });
+
+    // 2. WebSocket 实时推送
+    this.notificationGateway.sendToUser(data.userId, {
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      content: notification.content,
+      link: notification.link,
+      isRead: notification.isRead,
+      createdAt: notification.createdAt,
+    });
+
+    // 3. 邮件通知（异步，不阻塞主流程）
+    if (data.channels?.includes('email')) {
+      this.sendEmailNotification(data).catch((error) => {
+        this.logger.error('Failed to send email notification:', error);
+      });
+    }
+
+    return notification;
+  }
+
+  /**
+   * 发送邮件通知（异步）
+   */
+  private async sendEmailNotification(data: CreateNotificationDto) {
+    try {
+      // 获取用户邮箱
+      const user = await this.prisma.user.findUnique({
+        where: { id: data.userId },
+        select: { email: true },
+      });
+
+      if (!user?.email) {
+        this.logger.warn(`User ${data.userId} has no email, skipping email notification`);
+        return;
+      }
+
+      await this.emailChannel.sendNotificationEmail(
+        user.email,
+        data.title,
+        data.content,
+        data.link,
+      );
+    } catch (error) {
+      this.logger.error('Error sending email notification:', error);
+    }
   }
 
   /**
@@ -66,11 +123,36 @@ export class NotificationService {
 
   /**
    * 标记通知为已读
+   * 验证通知是否属于当前用户
    */
-  async markAsRead(notificationId: string) {
+  async markAsRead(notificationId: string, userId: string) {
+    const notification = await this.prisma.notification.findUnique({
+      where: { id: notificationId },
+    });
+
+    if (!notification) {
+      throw new NotFoundException('通知不存在');
+    }
+
+    if (notification.userId !== userId) {
+      throw new ForbiddenException('无权操作此通知');
+    }
+
     return this.prisma.notification.update({
       where: { id: notificationId },
       data: { isRead: true },
+    });
+  }
+
+  /**
+   * 获取未读通知数量
+   */
+  async getUnreadCount(userId: string): Promise<number> {
+    return this.prisma.notification.count({
+      where: {
+        userId,
+        isRead: false,
+      },
     });
   }
 

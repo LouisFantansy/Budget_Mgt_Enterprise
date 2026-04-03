@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { UpdateDepartmentDto } from './dto/update-department.dto';
@@ -31,8 +31,9 @@ export class DepartmentService {
 
   /**
    * 获取部门树
+   * 数据隔离：非 admin 用户只能查看本部门及子部门
    */
-  async findAllTree() {
+  async findAllTree(user?: { userId: string; departmentId: string; roles: string[] }) {
     const departments = await this.prisma.department.findMany({
       where: { status: 'ACTIVE' },
       include: {
@@ -46,14 +47,38 @@ export class DepartmentService {
       orderBy: { sortOrder: 'asc' },
     });
 
+    // 数据隔离：非 admin 用户只能查看本部门及子部门
+    if (user && !user.roles.includes('admin')) {
+      // 获取用户部门及其所有子部门 ID
+      const allowedIds = this.getDepartmentAndChildrenIds(departments, user.departmentId);
+      const filteredDepartments = departments.filter(d => allowedIds.includes(d.id));
+      return this.buildDepartmentTree(filteredDepartments);
+    }
+
     // 构建树形结构
     return this.buildDepartmentTree(departments);
   }
 
   /**
-   * 获取部门详情
+   * 获取部门及其所有子部门的 ID 列表
    */
-  async findOne(id: string) {
+  private getDepartmentAndChildrenIds(departments: any[], parentId: string): string[] {
+    const ids = [parentId];
+    const children = departments.filter(d => d.parentId === parentId);
+    for (const child of children) {
+      ids.push(...this.getDepartmentAndChildrenIds(departments, child.id));
+    }
+    return ids;
+  }
+
+  /**
+   * 获取部门详情
+   * 数据隔离：非 admin 用户只能查看本部门及子部门
+   */
+  async findOne(
+    id: string,
+    user?: { userId: string; departmentId: string; roles: string[] },
+  ) {
     const department = await this.prisma.department.findUnique({
       where: { id },
       include: {
@@ -76,6 +101,18 @@ export class DepartmentService {
 
     if (!department) {
       throw new NotFoundException('部门不存在');
+    }
+
+    // 数据隔离：非 admin 用户只能查看本部门及子部门
+    if (user && !user.roles.includes('admin')) {
+      const allDepartments = await this.prisma.department.findMany({
+        where: { status: 'ACTIVE' },
+        select: { id: true, parentId: true },
+      });
+      const allowedIds = this.getDepartmentAndChildrenIds(allDepartments, user.departmentId);
+      if (!allowedIds.includes(id)) {
+        throw new ForbiddenException('无权查看该部门');
+      }
     }
 
     return department;

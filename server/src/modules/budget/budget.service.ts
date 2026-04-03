@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 
@@ -49,18 +49,30 @@ export class BudgetService {
 
   /**
    * 获取预算列表
+   * 数据隔离：非 admin 用户只能查看本部门预算
    */
-  async findAll(params: {
-    page?: number;
-    pageSize?: number;
-    departmentId?: string;
-    year?: number;
-    status?: string;
-  }) {
+  async findAll(
+    params: {
+      page?: number;
+      pageSize?: number;
+      departmentId?: string;
+      year?: number;
+      status?: string;
+    },
+    user?: { userId: string; departmentId: string; roles: string[] },
+  ) {
     const { page = 1, pageSize = 20, departmentId, year, status } = params;
 
     const where: any = {};
-    if (departmentId) where.departmentId = departmentId;
+    
+    // 数据隔离：非 admin 用户只能查看本部门预算
+    if (user && !user.roles.includes('admin')) {
+      where.departmentId = user.departmentId;
+    } else if (departmentId) {
+      // admin 用户可以按 departmentId 过滤
+      where.departmentId = departmentId;
+    }
+    
     if (year) where.year = year;
     if (status) where.status = status;
 
@@ -91,8 +103,12 @@ export class BudgetService {
 
   /**
    * 获取预算详情
+   * 数据隔离：非 admin 用户只能查看本部门预算
    */
-  async findOne(id: string) {
+  async findOne(
+    id: string,
+    user?: { userId: string; departmentId: string; roles: string[] },
+  ) {
     const budget = await this.prisma.budget.findUnique({
       where: { id },
       include: {
@@ -112,6 +128,11 @@ export class BudgetService {
 
     if (!budget) {
       throw new NotFoundException('预算不存在');
+    }
+
+    // 数据隔离：非 admin 用户只能查看本部门预算
+    if (user && !user.roles.includes('admin') && budget.departmentId !== user.departmentId) {
+      throw new ForbiddenException('无权查看该预算');
     }
 
     return budget;

@@ -1,0 +1,92 @@
+.user-management-page .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.user-management-page .filters-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.user-management-page .filters-row .input-group {
+  flex: 1;
+  max-width: 300px;
+}
+
+.user-management-page .action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.user-management-page .action-buttons .btn-sm {
+  padding: 6px 8px;
+}
+
+.user-management-page .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.user-management-page .form-grid .full-width {
+  grid-column: 1 / -1;
+}
+
+.user-management-page .checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.user-management-page .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.user-management-page .checkbox-label input {
+  width: 16px;
+  height: 16px;
+}
+
+.user-management-page .btn-danger {
+  background: var(--danger);
+  color: white;
+}
+
+.user-management-page .btn-danger:hover {
+  background: #e6352a;
+}
+
+.user-management-page .btn-success {
+  background: var(--success);
+  color: white;
+}
+
+.user-management-page .btn-success:hover {
+  background: #2db67d;
+}
+
+@media (max-width: 768px) {
+  .user-management-page .filters-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .user-management-page .filters-row .input-group {
+    max-width: none;
+  }
+  
+  .user-management-page .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .user-management-page .action-buttons {
+    flex-direction: column;
+  }
+}

@@ -1,32 +1,61 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Save } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, Loader2 } from 'lucide-react'
+import { budgetApi } from '../api/modules/budget.api'
+import { departmentApi, DepartmentTreeNode } from '../api/modules/department.api'
+import type { CreateBudgetItemRequest } from '../api/types/budget.types'
+import type { BudgetType } from '../types'
 
 interface BudgetItem {
   id: string
   name: string
   category: string
-  budget: number
+  unitPrice: number
+  quantity: number
 }
 
 export function BudgetCreate() {
   const navigate = useNavigate()
+  const [loading, setLoading] = useState(false)
+  const [departments, setDepartments] = useState<DepartmentTreeNode[]>([])
+  
   const [formData, setFormData] = useState({
     name: '',
-    department: '',
-    type: 'Opex',
+    departmentId: '',
+    type: 'OPEX' as BudgetType,
     year: new Date().getFullYear(),
-    status: 'draft',
   })
   const [items, setItems] = useState<BudgetItem[]>([
-    { id: '1', name: '', category: '', budget: 0 },
+    { id: '1', name: '', category: '', unitPrice: 0, quantity: 1 },
   ])
 
-  const departments = ['研发部', '生产部', '采购部', '质量部', 'IT部', '行政部']
-  const categories = ['材料费', '测试费', '租赁费', '差旅费', '咨询费', '设备费']
+  const categories = ['材料费', '测试费', '租赁费', '差旅费', '咨询费', '设备费', '服务费', '其他']
+
+  // 加载部门列表
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await departmentApi.getTree()
+        if (response.data) {
+          setDepartments(response.data)
+        }
+      } catch (err) {
+        console.error('加载部门失败:', err)
+      }
+    }
+    fetchDepartments()
+  }, [])
+
+  // 扁平化部门列表
+  const flattenDepartments = (depts: DepartmentTreeNode[], level: number = 0): { id: string; name: string; level: number }[] => {
+    return depts.flatMap(dept => [
+      { id: dept.id, name: dept.name, level },
+      ...(dept.children ? flattenDepartments(dept.children, level + 1) : [])
+    ])
+  }
 
   const addItem = () => {
-    setItems([...items, { id: Date.now().toString(), name: '', category: '', budget: 0 }])
+    setItems([...items, { id: Date.now().toString(), name: '', category: '', unitPrice: 0, quantity: 1 }])
   }
 
   const removeItem = (id: string) => {
@@ -39,14 +68,44 @@ export function BudgetCreate() {
     setItems(items.map((item) => (item.id === id ? { ...item, [field]: value } : item)))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // In production, this would save to the backend
-    console.log('Saving budget:', { ...formData, items })
-    navigate('/budgets')
+    
+    // 验证明细
+    const validItems = items.filter(item => item.name && item.unitPrice > 0)
+    if (validItems.length === 0) {
+      alert('请至少添加一条有效的预算明细')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const budgetItems: CreateBudgetItemRequest[] = validItems.map(item => ({
+        name: item.name,
+        category: item.category || '其他',
+        unitPrice: item.unitPrice,
+        quantity: item.quantity,
+      }))
+
+      await budgetApi.create({
+        name: formData.name,
+        departmentId: formData.departmentId,
+        type: formData.type,
+        year: formData.year,
+        items: budgetItems,
+      })
+      
+      alert('预算创建成功')
+      navigate('/budgets')
+    } catch (err: any) {
+      alert(err.response?.data?.message || '创建失败')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const totalBudget = items.reduce((sum, item) => sum + (item.budget || 0), 0)
+  const totalBudget = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity || 0), 0)
+  const years = Array.from({ length: 11 }, (_, i) => 2020 + i)
 
   return (
     <div className="budget-create">
@@ -80,14 +139,14 @@ export function BudgetCreate() {
               <label className="input-label">所属部门 *</label>
               <select
                 className="select"
-                value={formData.department}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                value={formData.departmentId}
+                onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
                 required
               >
                 <option value="">请选择部门</option>
-                {departments.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
+                {flattenDepartments(departments).map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {'　'.repeat(dept.level)}{dept.name}
                   </option>
                 ))}
               </select>
@@ -97,10 +156,10 @@ export function BudgetCreate() {
               <select
                 className="select"
                 value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value as BudgetType })}
               >
-                <option value="Opex">Opex - 运营性支出</option>
-                <option value="Capex">Capex - 资本性支出</option>
+                <option value="OPEX">OPEX - 运营性支出</option>
+                <option value="CAPEX">CAPEX - 资本性支出</option>
               </select>
             </div>
             <div className="input-group">
@@ -110,9 +169,9 @@ export function BudgetCreate() {
                 value={formData.year}
                 onChange={(e) => setFormData({ ...formData, year: Number(e.target.value) })}
               >
-                <option value={2024}>2024</option>
-                <option value={2025}>2025</option>
-                <option value={2026}>2026</option>
+                {years.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -130,7 +189,9 @@ export function BudgetCreate() {
               <tr>
                 <th>项目名称</th>
                 <th>类别</th>
-                <th>预算金额</th>
+                <th>单价（元）</th>
+                <th>数量</th>
+                <th>小计</th>
                 <th>操作</th>
               </tr>
             </thead>
@@ -166,11 +227,26 @@ export function BudgetCreate() {
                     <input
                       type="number"
                       className="input"
-                      value={item.budget || ''}
-                      onChange={(e) => updateItem(item.id, 'budget', Number(e.target.value))}
+                      value={item.unitPrice || ''}
+                      onChange={(e) => updateItem(item.id, 'unitPrice', Number(e.target.value))}
                       placeholder="0"
-                      style={{ width: '150px' }}
+                      min="0"
+                      step="0.01"
+                      style={{ width: '120px' }}
                     />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      className="input"
+                      value={item.quantity}
+                      onChange={(e) => updateItem(item.id, 'quantity', Number(e.target.value))}
+                      min="1"
+                      style={{ width: '80px' }}
+                    />
+                  </td>
+                  <td>
+                    ¥{((item.unitPrice || 0) * (item.quantity || 0)).toLocaleString()}
                   </td>
                   <td>
                     <button
@@ -187,7 +263,7 @@ export function BudgetCreate() {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={2} className="text-right font-bold">
+                <td colSpan={4} className="text-right font-bold">
                   预算合计：
                 </td>
                 <td className="font-bold">¥{totalBudget.toLocaleString()}</td>
@@ -201,8 +277,16 @@ export function BudgetCreate() {
           <Link to="/budgets" className="btn btn-secondary">
             取消
           </Link>
-          <button type="submit" className="btn btn-primary">
-            <Save size={16} /> 保存为草稿
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? (
+              <>
+                <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> 处理中...
+              </>
+            ) : (
+              <>
+                <Save size={16} /> 保存为草稿
+              </>
+            )}
           </button>
         </div>
       </form>

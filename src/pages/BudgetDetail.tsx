@@ -1,43 +1,110 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Edit, Send, CheckCircle, XCircle } from 'lucide-react'
-
-// Mock budget detail
-const mockBudgetDetail = {
-  id: '1',
-  name: '2024年度研发部预算',
-  department: '研发部',
-  type: 'Opex',
-  budget: 15000000,
-  used: 12000000,
-  remaining: 3000000,
-  status: 'approved',
-  year: 2024,
-  createdAt: '2024-01-15',
-  updatedAt: '2024-06-20',
-  items: [
-    { id: '1', name: '研发材料', budget: 8000000, used: 6500000, category: '材料费' },
-    { id: '2', name: '测试费用', budget: 4000000, used: 3500000, category: '测试费' },
-    { id: '3', name: '设备租赁', budget: 2000000, used: 1500000, category: '租赁费' },
-    { id: '4', name: '差旅费', budget: 1000000, used: 500000, category: '差旅费' },
-  ],
-  approvals: [
-    { step: 1, role: '部门负责人', user: '李部门', status: 'approved', date: '2024-01-20', comment: '同意' },
-    { step: 2, role: '预算管理员', user: '张预算', status: 'approved', date: '2024-01-22', comment: '预算合理，同意' },
-    { step: 3, role: '财务', user: '王财务', status: 'approved', date: '2024-01-25', comment: '符合财务规范' },
-    { step: 4, role: '总经理', user: '赵总', status: 'approved', date: '2024-01-28', comment: '批准执行' },
-  ],
-}
+import { useState, useEffect } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Edit, Send, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { budgetApi } from '../api/modules/budget.api'
+import type { Budget, BudgetItem } from '../types'
 
 export function BudgetDetail() {
   const { id } = useParams()
-  const [budget] = useState(mockBudgetDetail)
+  const navigate = useNavigate()
+  const [budget, setBudget] = useState<Budget | null>(null)
+  const [items, setItems] = useState<BudgetItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    const fetchBudget = async () => {
+      if (!id) return
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await budgetApi.getById(id)
+        if (response.data) {
+          setBudget(response.data)
+          setItems(response.data.items || [])
+        }
+      } catch (err: any) {
+        setError(err.response?.data?.message || '加载预算详情失败')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchBudget()
+  }, [id])
 
   const formatCurrency = (value: number) => {
     return `¥${(value / 10000).toFixed(0)}万`
   }
 
-  const usageRate = ((budget.used / budget.budget) * 100).toFixed(1)
+  const handleSubmitApproval = async () => {
+    if (!budget) return
+    if (!confirm('确定要提交审批吗？')) return
+    
+    setSubmitting(true)
+    try {
+      await budgetApi.submitForApproval(budget.id)
+      alert('提交审批成功')
+      // 刷新数据
+      const response = await budgetApi.getById(budget.id)
+      if (response.data) {
+        setBudget(response.data)
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || '提交审批失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const statusLabels: Record<string, string> = {
+    DRAFT: '草稿',
+    PENDING: '待审批',
+    APPROVED: '已审批',
+    REJECTED: '已拒绝',
+    ADJUSTED: '已调整',
+    CLOSED: '已关闭',
+  }
+
+  if (loading) {
+    return (
+      <div className="budget-detail">
+        <div className="page-header">
+          <div>
+            <Link to="/budgets" className="back-link">
+              <ArrowLeft size={16} /> 返回列表
+            </Link>
+          </div>
+        </div>
+        <div className="card mt-4" style={{ padding: '40px', textAlign: 'center' }}>
+          <Loader2 size={32} style={{ animation: 'spin 1s linear infinite' }} />
+          <p style={{ marginTop: '12px', color: 'var(--text-secondary)' }}>加载中...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !budget) {
+    return (
+      <div className="budget-detail">
+        <div className="page-header">
+          <div>
+            <Link to="/budgets" className="back-link">
+              <ArrowLeft size={16} /> 返回列表
+            </Link>
+          </div>
+        </div>
+        <div className="card mt-4" style={{ padding: '16px', color: 'var(--danger)' }}>
+          {error || '预算不存在'}
+        </div>
+      </div>
+    )
+  }
+
+  const usageRate = budget.totalAmount > 0 
+    ? ((budget.usedAmount / budget.totalAmount) * 100).toFixed(1) 
+    : '0.0'
+  const remaining = budget.totalAmount - budget.usedAmount
 
   return (
     <div className="budget-detail">
@@ -49,12 +116,26 @@ export function BudgetDetail() {
           <h1 className="page-title">{budget.name}</h1>
         </div>
         <div className="header-actions">
-          <Link to={`/budgets/${id}/adjust`} className="btn btn-secondary">
-            <Edit size={16} /> 调整预算
-          </Link>
-          {budget.status === 'draft' && (
-            <button className="btn btn-primary">
-              <Send size={16} /> 提交审批
+          {budget.status === 'APPROVED' && (
+            <Link to={`/budgets/${id}/adjust`} className="btn btn-secondary">
+              <Edit size={16} /> 调整预算
+            </Link>
+          )}
+          {budget.status === 'DRAFT' && (
+            <button 
+              className="btn btn-primary" 
+              onClick={handleSubmitApproval}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> 处理中...
+                </>
+              ) : (
+                <>
+                  <Send size={16} /> 提交审批
+                </>
+              )}
             </button>
           )}
         </div>
@@ -64,15 +145,15 @@ export function BudgetDetail() {
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">预算金额</div>
-          <div className="stat-value">{formatCurrency(budget.budget)}</div>
+          <div className="stat-value">{formatCurrency(budget.totalAmount)}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">已使用</div>
-          <div className="stat-value">{formatCurrency(budget.used)}</div>
+          <div className="stat-value">{formatCurrency(budget.usedAmount)}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">剩余</div>
-          <div className="stat-value">{formatCurrency(budget.remaining)}</div>
+          <div className="stat-value">{formatCurrency(remaining)}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">执行率</div>
@@ -81,10 +162,51 @@ export function BudgetDetail() {
             <div
               className="progress-bar"
               style={{
-                width: `${usageRate}%`,
+                width: `${Math.min(Number(usageRate), 100)}%`,
                 background: Number(usageRate) > 100 ? '#ff3b30' : Number(usageRate) > 80 ? '#ff9500' : '#34c759',
               }}
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Budget Info */}
+      <div className="card mt-4">
+        <div className="card-header">
+          <h3 className="card-title">基本信息</h3>
+        </div>
+        <div className="info-grid">
+          <div className="info-item">
+            <span className="info-label">预算编号</span>
+            <span className="info-value">{budget.budgetNo}</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">所属部门</span>
+            <span className="info-value">{budget.department?.name || '-'}</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">预算类型</span>
+            <span className="info-value">{budget.type === 'OPEX' ? '运营性支出' : '资本性支出'}</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">年度</span>
+            <span className="info-value">{budget.year}</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">状态</span>
+            <span className="info-value">
+              <span className={`tag ${
+                budget.status === 'APPROVED' ? 'tag-success' : 
+                budget.status === 'PENDING' ? 'tag-warning' : 
+                budget.status === 'REJECTED' ? 'tag-danger' : 'tag-primary'
+              }`}>
+                {statusLabels[budget.status]}
+              </span>
+            </span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">创建时间</span>
+            <span className="info-value">{new Date(budget.createdAt).toLocaleDateString()}</span>
           </div>
         </div>
       </div>
@@ -94,66 +216,62 @@ export function BudgetDetail() {
         <div className="card-header">
           <h3 className="card-title">预算明细</h3>
         </div>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>项目</th>
-              <th>类别</th>
-              <th>预算金额</th>
-              <th>已使用</th>
-              <th>剩余</th>
-              <th>执行率</th>
-            </tr>
-          </thead>
-          <tbody>
-            {budget.items.map((item) => {
-              const rate = ((item.used / item.budget) * 100).toFixed(1)
-              return (
-                <tr key={item.id}>
-                  <td className="font-medium">{item.name}</td>
-                  <td>{item.category}</td>
-                  <td>{formatCurrency(item.budget)}</td>
-                  <td>{formatCurrency(item.used)}</td>
-                  <td>{formatCurrency(item.budget - item.used)}</td>
-                  <td>
-                    <span
-                      className={`tag ${
-                        Number(rate) > 100 ? 'tag-danger' : Number(rate) > 80 ? 'tag-warning' : 'tag-success'
-                      }`}
-                    >
-                      {rate}%
-                    </span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        {items.length > 0 ? (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>项目</th>
+                <th>类别</th>
+                <th>预算金额</th>
+                <th>已使用</th>
+                <th>剩余</th>
+                <th>执行率</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => {
+                const rate = item.totalAmount > 0 
+                  ? ((item.usedAmount / item.totalAmount) * 100).toFixed(1) 
+                  : '0.0'
+                return (
+                  <tr key={item.id}>
+                    <td className="font-medium">{item.name}</td>
+                    <td>{item.category}</td>
+                    <td>{formatCurrency(item.totalAmount)}</td>
+                    <td>{formatCurrency(item.usedAmount)}</td>
+                    <td>{formatCurrency(item.totalAmount - item.usedAmount)}</td>
+                    <td>
+                      <span
+                        className={`tag ${
+                          Number(rate) > 100 ? 'tag-danger' : Number(rate) > 80 ? 'tag-warning' : 'tag-success'
+                        }`}
+                      >
+                        {rate}%
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div className="empty-state">
+            <p>暂无预算明细</p>
+          </div>
+        )}
       </div>
 
-      {/* Approval History */}
-      <div className="card mt-4">
-        <div className="card-header">
-          <h3 className="card-title">审批记录</h3>
+      {/* Remark */}
+      {budget.remark && (
+        <div className="card mt-4">
+          <div className="card-header">
+            <h3 className="card-title">备注</h3>
+          </div>
+          <div style={{ padding: '16px' }}>
+            {budget.remark}
+          </div>
         </div>
-        <div className="approval-timeline">
-          {budget.approvals.map((approval, index) => (
-            <div key={index} className="approval-step">
-              <div className={`approval-icon ${approval.status}`}>
-                {approval.status === 'approved' ? <CheckCircle size={20} /> : <XCircle size={20} />}
-              </div>
-              <div className="approval-content">
-                <div className="approval-header">
-                  <span className="approval-role">{approval.role}</span>
-                  <span className="approval-user">{approval.user}</span>
-                </div>
-                <div className="approval-comment">{approval.comment}</div>
-                <div className="approval-date">{approval.date}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   )
 }

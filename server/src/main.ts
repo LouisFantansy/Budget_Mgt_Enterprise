@@ -5,6 +5,8 @@ import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
+import { PrismaService } from './common/prisma/prisma.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -35,6 +37,10 @@ async function bootstrap() {
 
   // 全局拦截器
   app.useGlobalInterceptors(new TransformInterceptor());
+  
+  // 审计日志拦截器（需要 PrismaService）
+  const prismaService = app.get(PrismaService);
+  app.useGlobalInterceptors(new AuditLogInterceptor(prismaService));
 
   // Swagger API 文档
   const config = new DocumentBuilder()

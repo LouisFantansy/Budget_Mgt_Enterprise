@@ -114,7 +114,7 @@ export const post = <T>(
   data?: any,
   config?: AxiosRequestConfig
 ): Promise<AxiosResponse<T>> => {
-  return apiClient.post<T>(data, config);
+  return apiClient.post<T>(url, data, config);
 };
 
 /**

@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { BudgetService } from './budget.service';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser, CurrentUserType } from 'src/common/decorators/current-user.decorator';
 
 @ApiTags('预算管理')
 @Controller('budgets')
@@ -20,6 +21,7 @@ export class BudgetController {
   @Get()
   @ApiOperation({ summary: '获取预算列表' })
   findAll(
+    @CurrentUser() user: CurrentUserType,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
     @Query('departmentId') departmentId?: string,
@@ -32,13 +34,13 @@ export class BudgetController {
       departmentId,
       year,
       status,
-    });
+    }, user);
   }
 
   @Get(':id')
   @ApiOperation({ summary: '获取预算详情' })
-  findOne(@Param('id') id: string) {
-    return this.budgetService.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: CurrentUserType) {
+    return this.budgetService.findOne(id, user);
   }
 
   @Put(':id')
