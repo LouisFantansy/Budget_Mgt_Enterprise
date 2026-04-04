@@ -8,7 +8,7 @@ import type { BudgetType } from '../types'
 
 /**
  * 预算条目明细接口
- * @description 包含年度预算编制所需的所有字段
+ * @description 年度预算编制条目明细，支持1-12月月度细化、月度下款与执行睡析
  * @field id - 条目唯一标识
  * @field paymentEntity - 付款主体
  * @field group - 组别
@@ -18,14 +18,14 @@ import type { BudgetType } from '../types'
  * @field specification - 规格型号
  * @field functionDesc - 功能描述
  * @field unitPrice - 单价
- * @field quantity - 总数量
- * @field totalAmount - 总价
+ * @field quantity - 年度总数量
+ * @field totalAmount - 年度总价（自动计算）
  * @field project - 所属项目
  * @field purpose - 用途说明
  * @field supplier - 供应商
  * @field deliveryDate - 预计交付日期
- * @field monthlyQuantity - 1-12月每月采购数量
- * @field monthlyAmount - 1-12月每月采购金额
+ * @field monthlyQuantity - 1-12月每月的采购数量（如[10,10,10,0,...]）支持月度采购计划、执行跟踪
+ * @field monthlyAmount - 1-12月每月的采购金额（月数量*单价）支持月度下款、执行与预算对比
  */
 interface BudgetItemDetail {
   id: string
@@ -46,8 +46,10 @@ interface BudgetItemDetail {
   purpose: string
   supplier: string
   deliveryDate: string
-  monthlyQuantity: number[] // 1-12月每月采购数量
-  monthlyAmount: number[]   // 1-12月每月采购金额
+  /** 1-12月每月的采购数量：用于月度采购计划、执行跟踪和逐月下款 */
+  monthlyQuantity: number[]
+  /** 1-12月每月的采购金额（月数量*单价）：用于月度财务预算、执行与差异分析 */
+  monthlyAmount: number[]
 }
 
 export function BudgetCreateAdvanced() {

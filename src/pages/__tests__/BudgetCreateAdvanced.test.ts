@@ -29,8 +29,10 @@ interface BudgetItemDetail {
   purpose: string
   supplier: string
   deliveryDate: string
-  monthlyQuantity: number[] // 1-12月每月采购数量
-  monthlyAmount: number[]   // 1-12月每月采购金额
+  /** 1-12月每月的采购数量，支持月度采购计划、执行追踪 */
+  monthlyQuantity: number[]
+  /** 1-12月每月的采购金额（月数量*单价），用于月度下款与执行睡析分析 */
+  monthlyAmount: number[]
 }
 
 // ==================== 工具函数 ====================
@@ -47,9 +49,9 @@ function calculateTotalAmount(unitPrice: number, quantity: number): number {
 
 /**
  * 计算月度金额分布
- * @param monthlyQuantity - 每月数量数组
+ * @param monthlyQuantity - 1-12月每月的采购数量数组
  * @param unitPrice - 单价
- * @returns 每月金额数组
+ * @returns 1-12月每月的金额数组（月金额 = 月数量 * 单价）
  */
 function calculateMonthlyAmounts(monthlyQuantity: number[], unitPrice: number): number[] {
   return monthlyQuantity.map(qty => qty * unitPrice)
@@ -89,10 +91,11 @@ function validateBudgetItem(item: Partial<BudgetItemDetail>): { valid: boolean; 
 }
 
 /**
- * 验证月度数量总和与年度数量是否一致
- * @param monthlyQuantity - 每月数量数组
+ * 验识月度数量总和与年度数量是否一致
+ * @param monthlyQuantity - 1-12月每月的采购数量数组
  * @param totalQuantity - 年度总数量
- * @returns 是否一致
+ * @returns 是否一致（月数量总和 = 年度总数量）
+ * @description 用于验识月度采购计划是否揺杂，确保月度牧控的氣密性
  */
 function validateMonthlyQuantitySum(monthlyQuantity: number[], totalQuantity: number): boolean {
   const sum = monthlyQuantity.reduce((acc, qty) => acc + qty, 0)

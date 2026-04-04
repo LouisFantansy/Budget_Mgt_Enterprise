@@ -131,13 +131,24 @@ export interface BudgetItem {
   supplier?: string;
   deliveryDate?: string;
   sortOrder: number;
-  // 扩展字段：满足商业预算管理需求
+  // 扩展字段：满足商业预算管理需求与月度执行睡析
   paymentEntity?: string;      // 付款主体
   group?: string;              // 组别
   accountCode?: string;        // 会计科目
   amount?: number;             // 金额（用于明细）
-  monthlyQuantities?: number[]; // 1-12月每月采购数量
-  monthlyAmounts?: number[];    // 1-12月每月采购金额
+  /**
+   * 1-12月每月的采购数量
+   * 示例: [10, 10, 10, 10, 10, 0, 0, 0, 0, 0, 0, 0] 表示前5个月每月数量10
+   * 用途: 支持月度采购计划、月度执行睡析分析
+   */
+  monthlyQuantities?: number[];
+  /**
+   * 1-12月每月的采购金额
+   * 计算: monthlyQuantities[i] * unitPrice
+   * 示例: [100000, 100000, 100000, ...] 表示前3个月每月金额100000
+   * 用途: 月度下款估算、亓温执行与预算对比
+   */
+  monthlyAmounts?: number[];
 }
 
 export interface BudgetAdjustment {
