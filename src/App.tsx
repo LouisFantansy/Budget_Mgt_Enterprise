@@ -19,6 +19,9 @@ import { PurchaseRequestList } from './pages/PurchaseRequestList'
 import { PurchaseRequestDetail } from './pages/PurchaseRequestDetail'
 import { PurchaseRequestCreate } from './pages/PurchaseRequestCreate'
 import { BudgetUsageTracker } from './pages/BudgetUsageTracker'
+import { UserManagement } from './pages/UserManagement'
+import { RoleManagement } from './pages/RoleManagement'
+import { AuditLog } from './pages/AuditLog'
 import { useAuthStore } from './store/authStore'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -46,17 +49,21 @@ function App() {
           <Route path="budgets/create-advanced" element={<BudgetCreateAdvanced />} />
           <Route path="budgets/:id" element={<BudgetDetail />} />
           <Route path="budgets/:id/adjust" element={<BudgetAdjust />} />
-          <Route path="budget/summary" element={<BudgetSummary />} />
+          <Route path="budgets/summary" element={<BudgetSummary />} />
+          <Route path="budgets/usage" element={<BudgetUsageTracker />} />
+          <Route path="purchase" element={<PurchaseRequestList />} />
+          <Route path="purchase/create" element={<PurchaseRequestCreate />} />
+          <Route path="purchase/:id" element={<PurchaseRequestDetail />} />
           <Route path="import/purchase" element={<PurchaseImport />} />
           <Route path="import/settlement" element={<SettlementImport />} />
           <Route path="mapping" element={<Mapping />} />
           <Route path="approval" element={<Approval />} />
           <Route path="analysis" element={<Analysis />} />
-          <Route path="purchase" element={<PurchaseRequestList />} />
-          <Route path="purchase/create" element={<PurchaseRequestCreate />} />
-          <Route path="purchase/:id" element={<PurchaseRequestDetail />} />
-          <Route path="budget-usage" element={<BudgetUsageTracker />} />
           <Route path="settings" element={<Settings />} />
+          {/* 系统管理 */}
+          <Route path="users" element={<UserManagement />} />
+          <Route path="roles" element={<RoleManagement />} />
+          <Route path="audit-logs" element={<AuditLog />} />
         </Route>
       </Routes>
     </BrowserRouter>

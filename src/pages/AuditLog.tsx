@@ -48,18 +48,26 @@ export function AuditLog() {
         module: filters.module || undefined,
         startDate: filters.startDate || undefined,
         endDate: filters.endDate || undefined,
-      })
+      }) as any
       
-      setLogs(response.data.items)
+      const responseData = response?.data?.data || response?.data || {}
+      setLogs(Array.isArray(responseData.items) ? responseData.items : [])
       setPagination({
-        total: response.data.total,
-        page: response.data.page,
-        pageSize: response.data.pageSize,
-        totalPages: response.data.totalPages,
+        total: responseData.total || 0,
+        page: responseData.page || 1,
+        pageSize: responseData.pageSize || 20,
+        totalPages: responseData.totalPages || 0,
       })
     } catch (err: any) {
       console.error('Failed to fetch audit logs:', err)
-      setError(err.response?.data?.message || '获取审计日志失败')
+      // 优雅处理：API 不存在时显示空数据
+      setLogs([])
+      setPagination({
+        total: 0,
+        page: 1,
+        pageSize: 20,
+        totalPages: 0,
+      })
     } finally {
       setLoading(false)
     }

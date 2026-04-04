@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { FileText, Download, Eye, Edit, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { FileText, Download, Eye, Edit, Trash2, Loader2 } from 'lucide-react'
+import { budgetApi } from '../api/modules/budget.api'
 
 interface BudgetSummary {
   id: string
@@ -13,35 +14,40 @@ interface BudgetSummary {
   createdBy: string
 }
 
-const mockSummaries: BudgetSummary[] = [
-  {
-    id: '1',
-    version: 'V1.0',
-    department: '研发事业部',
-    type: 'Opex',
-    totalAmount: 15000000,
-    status: 'approved',
-    createdAt: '2024-01-15',
-    updatedAt: '2024-01-28',
-    createdBy: '张预算',
-  },
-  {
-    id: '2',
-    version: 'V2.0',
-    department: '研发事业部',
-    type: 'Capex',
-    totalAmount: 8000000,
-    status: 'pending',
-    createdAt: '2024-02-01',
-    updatedAt: '2024-02-05',
-    createdBy: '张预算',
-  },
-]
-
 export function BudgetSummary() {
-  const [summaries] = useState(mockSummaries)
+  const [summaries, setSummaries] = useState<BudgetSummary[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+
+  useEffect(() => {
+    fetchSummaries()
+  }, [filterType, filterStatus])
+
+  const fetchSummaries = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await budgetApi.getList({ 
+        page: 1, 
+        pageSize: 50,
+        type: filterType as any || undefined,
+        status: filterStatus.toUpperCase() as any || undefined
+      }) as any
+      console.log('Budget API response:', response)
+      if (response && response.data) {
+        const items = response.data.data?.items || []
+        console.log('Budget items:', items)
+        setSummaries(items)
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch summaries:', err)
+      setError(err.message || '获取数据失败')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const formatCurrency = (value: number) => `¥${(value / 10000).toFixed(0)}万`
 
@@ -83,61 +89,81 @@ export function BudgetSummary() {
         <div className="card-header">
           <h3 className="card-title">预算汇总表</h3>
         </div>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>版本</th>
-              <th>部门</th>
-              <th>类型</th>
-              <th>总金额</th>
-              <th>状态</th>
-              <th>创建人</th>
-              <th>创建日期</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summaries.map((summary) => (
-              <tr key={summary.id}>
-                <td className="font-medium">{summary.version}</td>
-                <td>{summary.department}</td>
-                <td>
-                  <span className={`tag ${summary.type === 'Capex' ? 'tag-primary' : 'tag-success'}`}>
-                    {summary.type}
-                  </span>
-                </td>
-                <td>{formatCurrency(summary.totalAmount)}</td>
-                <td>
-                  <span className={`tag ${statusLabels[summary.status].color}`}>
-                    {statusLabels[summary.status].label}
-                  </span>
-                </td>
-                <td>{summary.createdBy}</td>
-                <td>{summary.createdAt}</td>
-                <td>
-                  <div className="action-buttons">
-                    <button className="btn-icon-sm" title="查看">
-                      <Eye size={14} />
-                    </button>
-                    <button className="btn-icon-sm" title="下载">
-                      <Download size={14} />
-                    </button>
-                    {summary.status === 'draft' && (
-                      <>
-                        <button className="btn-icon-sm" title="编辑">
-                          <Edit size={14} />
-                        </button>
-                        <button className="btn-icon-sm" title="删除">
-                          <Trash2 size={14} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </td>
+        {error && (
+          <div className="error-message" style={{ padding: '16px', color: 'var(--danger)' }}>
+            错误: {error}
+          </div>
+        )}
+        {loading ? (
+          <div className="loading-container">
+            <Loader2 className="spinner" size={32} />
+            <p>加载中...</p>
+          </div>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>版本</th>
+                <th>部门</th>
+                <th>类型</th>
+                <th>总金额</th>
+                <th>状态</th>
+                <th>创建人</th>
+                <th>创建日期</th>
+                <th>操作</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {summaries.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '32px' }}>
+                    暂无数据
+                  </td>
+                </tr>
+              ) : (
+                summaries.map((summary) => (
+                  <tr key={summary.id}>
+                    <td className="font-medium">{summary.version || '-'}</td>
+                    <td>{summary.department || '-'}</td>
+                    <td>
+                      <span className={`tag ${summary.type === 'Capex' ? 'tag-primary' : 'tag-success'}`}>
+                        {summary.type || '-'}
+                      </span>
+                    </td>
+                    <td>{formatCurrency(summary.totalAmount || 0)}</td>
+                    <td>
+                      <span className={`tag ${statusLabels[summary.status]?.color || 'tag-primary'}`}>
+                        {statusLabels[summary.status]?.label || summary.status || '-'}
+                      </span>
+                    </td>
+                    <td>{summary.createdBy || '-'}</td>
+                    <td>{summary.createdAt || '-'}</td>
+                    <td>
+                      <div className="action-buttons">
+                        <button className="btn-icon-sm" title="查看">
+                          <Eye size={14} />
+                        </button>
+                        <button className="btn-icon-sm" title="下载">
+                          <Download size={14} />
+                        </button>
+                        {summary.status === 'draft' && (
+                          <>
+                            <button className="btn-icon-sm" title="编辑">
+                              <Edit size={14} />
+                            </button>
+                            <button className="btn-icon-sm" title="删除">
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Department Breakdown */}

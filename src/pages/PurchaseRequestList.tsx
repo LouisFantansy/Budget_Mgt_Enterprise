@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Plus, Search, FileText, Clock, CheckCircle, XCircle, ArrowRight, Edit, Trash2 } from 'lucide-react'
+import { Plus, Search, FileText, Clock, CheckCircle, XCircle, ArrowRight, Edit, Trash2, Loader2 } from 'lucide-react'
+import { purchaseApi } from '../api/modules/purchase.api'
 
 interface PurchaseRequest {
   id: string
@@ -19,46 +20,52 @@ interface PurchaseRequest {
   createdAt: string
 }
 
-const mockRequests: PurchaseRequest[] = [
-  {
-    id: '1',
-    requestNo: 'PR2024001',
-    applicant: '张三',
-    department: '研发部',
-    budgetItem: 'BUD-2024-001',
-    itemName: '测试晶圆',
-    specification: '8 inch',
-    quantity: 10,
-    unitPrice: 5000,
-    totalAmount: 50000,
-    purpose: '新产品开发验证',
-    status: 'pending',
-    currentStep: 2,
-    createdAt: '2024-03-20',
-  },
-  {
-    id: '2',
-    requestNo: 'PR2024002',
-    applicant: '李四',
-    department: '测试部',
-    budgetItem: 'BUD-2024-002',
-    itemName: '测试设备',
-    specification: 'Model-X',
-    quantity: 1,
-    unitPrice: 100000,
-    totalAmount: 100000,
-    purpose: '实验室升级',
-    status: 'approved',
-    currentStep: 5,
-    createdAt: '2024-03-18',
-  },
-]
+const mockRequests: PurchaseRequest[] = []
 
 export function PurchaseRequestList() {
   const navigate = useNavigate()
-  const [requests, setRequests] = useState(mockRequests)
+  const [requests, setRequests] = useState<PurchaseRequest[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+
+  useEffect(() => {
+    fetchRequests()
+  }, [statusFilter])
+
+  const fetchRequests = async () => {
+    try {
+      setLoading(true)
+      const response = await purchaseApi.getList({ 
+        page: 1, 
+        pageSize: 50,
+        status: statusFilter.toUpperCase() as any || undefined 
+      }) as any
+      if (response && response.data) {
+        const items = response.data.data?.items || []
+        setRequests(items)
+      }
+    } catch (err) {
+      console.error('Failed to fetch purchase requests:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async (request: PurchaseRequest) => {
+    if (!confirm(`确定要删除采购申请 "${request.requestNo}" 吗？此操作不可恢复！`)) return
+    if (request.status !== 'DRAFT' && request.status !== 'REJECTED') {
+      alert('只能删除草稿或被拒绝的申请单')
+      return
+    }
+    try {
+      await purchaseApi.remove(request.id)
+      await fetchRequests()
+    } catch (err) {
+      console.error('Failed to delete:', err)
+      alert('删除失败')
+    }
+  }
 
   const formatCurrency = (value: number) => `¥${(value / 10000).toFixed(2)}万`
 
@@ -70,15 +77,6 @@ export function PurchaseRequestList() {
   }
 
   const stepLabels = ['需求人', '部门负责人', '预算管理员', '财务', '采购部']
-
-  const handleDelete = (request: PurchaseRequest) => {
-    if (!confirm(`确定要删除采购申请 "${request.requestNo}" 吗？此操作不可恢复！`)) return
-    if (request.status !== 'draft' && request.status !== 'rejected') {
-      alert('只能删除草稿或被拒绝的申请单')
-      return
-    }
-    setRequests(requests.filter(r => r.id !== request.id))
-  }
 
   return (
     <div className="purchase-request-page">
@@ -121,71 +119,78 @@ export function PurchaseRequestList() {
         <div className="card-header">
           <h3 className="card-title">申请列表</h3>
         </div>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>申请单号</th>
-              <th>申请人</th>
-              <th>部门</th>
-              <th>采购物品</th>
-              <th>金额</th>
-              <th>当前步骤</th>
-              <th>状态</th>
-              <th>申请日期</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map((request) => {
-              const status = statusLabels[request.status]
-              return (
-                <tr key={request.id}>
-                  <td className="font-medium">{request.requestNo}</td>
-                  <td>{request.applicant}</td>
-                  <td>{request.department}</td>
-                  <td>{request.itemName}</td>
-                  <td>{formatCurrency(request.totalAmount)}</td>
-                  <td>
-                    <span className="tag tag-warning">{stepLabels[request.currentStep - 1]}</span>
-                  </td>
-                  <td>
-                    <span className={`tag ${status.color}`}>
-                      <status.icon size={12} />
-                      {status.label}
-                    </span>
-                  </td>
-                  <td>{request.createdAt}</td>
-                  <td>
-                    <div className="action-buttons">
-                      <Link to={`/purchase/${request.id}`} className="btn-link-sm">
-                        查看 <ArrowRight size={12} />
-                      </Link>
-                      {(request.status === 'draft' || request.status === 'rejected') && (
-                        <>
-                          <button 
-                            className="btn-icon-sm" 
-                            title="编辑"
-                            onClick={() => navigate(`/purchase/create?edit=${request.id}`)}
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button 
-                            className="btn-icon-sm" 
-                            title="删除"
-                            onClick={() => handleDelete(request)}
-                            style={{ color: 'var(--danger)' }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        {loading ? (
+          <div className="loading-container">
+            <Loader2 className="spinner" size={32} />
+            <p>加载中...</p>
+          </div>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>申请单号</th>
+                <th>申请人</th>
+                <th>部门</th>
+                <th>采购物品</th>
+                <th>金额</th>
+                <th>当前步骤</th>
+                <th>状态</th>
+                <th>申请日期</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((request) => {
+                const status = statusLabels[request.status.toLowerCase()]
+                return (
+                  <tr key={request.id}>
+                    <td className="font-medium">{request.requestNo}</td>
+                    <td>{request.applicant}</td>
+                    <td>{request.department}</td>
+                    <td>{request.itemName}</td>
+                    <td>{formatCurrency(request.totalAmount)}</td>
+                    <td>
+                      <span className="tag tag-warning">{stepLabels[request.currentStep - 1] || '审批中'}</span>
+                    </td>
+                    <td>
+                      <span className={`tag ${status?.color || 'tag-primary'}`}>
+                        {status?.icon && <status.icon size={12} />}
+                        {status?.label || request.status}
+                      </span>
+                    </td>
+                    <td>{request.createdAt}</td>
+                    <td>
+                      <div className="action-buttons">
+                        <Link to={`/purchase/${request.id}`} className="btn-link-sm">
+                          查看 <ArrowRight size={12} />
+                        </Link>
+                        {(request.status === 'DRAFT' || request.status === 'REJECTED') && (
+                          <>
+                            <button 
+                              className="btn-icon-sm" 
+                              title="编辑"
+                              onClick={() => navigate(`/purchase/create?edit=${request.id}`)}
+                            >
+                              <Edit size={14} />
+                            </button>
+                            <button 
+                              className="btn-icon-sm" 
+                              title="删除"
+                              onClick={() => handleDelete(request)}
+                              style={{ color: 'var(--danger)' }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Quick Stats */}

@@ -1,10 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Send } from 'lucide-react'
+import { ArrowLeft, Save, Send, Loader2 } from 'lucide-react'
+import { purchaseApi } from '../api/modules/purchase.api'
+import { budgetApi } from '../api/modules/budget.api'
+
+interface BudgetItem {
+  id: string
+  code: string
+  name: string
+  balance: number
+}
 
 export function PurchaseRequestCreate() {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
+    budgetId: '',
     budgetItem: '',
     itemName: '',
     specification: '',
@@ -12,21 +22,80 @@ export function PurchaseRequestCreate() {
     unitPrice: 0,
     purpose: '',
   })
+  const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
 
-  const mockBudgetItems = [
-    { id: '1', code: 'BUD-2024-001', name: '测试晶圆', balance: 500000 },
-    { id: '2', code: 'BUD-2024-002', name: '测试设备', balance: 800000 },
-    { id: '3', code: 'BUD-2024-003', name: '研发材料', balance: 300000 },
-  ]
+  useEffect(() => {
+    fetchBudgets()
+  }, [])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fetchBudgets = async () => {
+    try {
+      setLoading(true)
+      const response = await budgetApi.getList({ page: 1, pageSize: 100, status: 'APPROVED' as any }) as any
+      if (response && response.data) {
+        const items = response.data.data?.items || []
+        // 转换为 BudgetItem 格式
+        const formattedItems = items.map((item: any) => ({
+          id: item.id,
+          code: item.budgetNo || item.code,
+          name: item.name,
+          balance: Number(item.totalAmount) - Number(item.usedAmount || 0),
+        }))
+        setBudgetItems(formattedItems)
+      }
+    } catch (err) {
+      console.error('Failed to fetch budgets:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('Creating purchase request:', formData)
-    // In production, save to backend
-    navigate('/purchase')
+    setSubmitting(true)
+    try {
+      await purchaseApi.create({
+        budgetId: formData.budgetId,
+        items: [{
+          name: formData.itemName,
+          specification: formData.specification,
+          quantity: formData.quantity,
+          unitPrice: formData.unitPrice,
+        }],
+        purpose: formData.purpose,
+        urgencyLevel: 'NORMAL' as any,
+      })
+      alert('采购申请创建成功')
+      navigate('/purchase')
+    } catch (err: any) {
+      console.error('Failed to create purchase request:', err)
+      alert(err.response?.data?.message || '创建失败')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleSaveDraft = async () => {
+    // 保存草稿逻辑类似，但可以先不提交审批
+    alert('草稿保存功能待实现')
   }
 
   const totalAmount = formData.quantity * formData.unitPrice
+
+  const selectedBudget = budgetItems.find(b => b.code === formData.budgetItem)
+
+  if (loading) {
+    return (
+      <div className="purchase-create-page">
+        <div className="loading-container">
+          <Loader2 className="spinner" size={32} />
+          <p>加载预算数据...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="purchase-create-page">
@@ -50,11 +119,18 @@ export function PurchaseRequestCreate() {
             <select
               className="select"
               value={formData.budgetItem}
-              onChange={(e) => setFormData({ ...formData, budgetItem: e.target.value })}
+              onChange={(e) => {
+                const selected = budgetItems.find(b => b.code === e.target.value)
+                setFormData({ 
+                  ...formData, 
+                  budgetItem: e.target.value,
+                  budgetId: selected?.id || ''
+                })
+              }}
               required
             >
               <option value="">请选择预算条目</option>
-              {mockBudgetItems.map((item) => (
+              {budgetItems.map((item) => (
                 <option key={item.id} value={item.code}>
                   {item.code} - {item.name} (余额：¥{(item.balance / 10000).toFixed(2)}万)
                 </option>
@@ -63,7 +139,7 @@ export function PurchaseRequestCreate() {
             {formData.budgetItem && (
               <div className="budget-info">
                 <span className="info-badge">预算充足</span>
-                <span className="text-secondary">可用余额：¥{(mockBudgetItems.find(i => i.code === formData.budgetItem)?.balance || 0).toLocaleString()}</span>
+                <span className="text-secondary">可用余额：¥{(selectedBudget?.balance || 0).toLocaleString()}</span>
               </div>
             )}
           </div>
@@ -189,11 +265,12 @@ export function PurchaseRequestCreate() {
           <Link to="/purchase" className="btn btn-secondary">
             取消
           </Link>
-          <button type="button" className="btn btn-primary">
+          <button type="button" className="btn btn-primary" onClick={handleSaveDraft} disabled={submitting}>
             <Save size={16} /> 保存草稿
           </button>
-          <button type="submit" className="btn btn-primary">
-            <Send size={16} /> 提交申请
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? <Loader2 className="spinner" size={16} /> : <Send size={16} />}
+            {submitting ? ' 提交中...' : ' 提交申请'}
           </button>
         </div>
       </form>

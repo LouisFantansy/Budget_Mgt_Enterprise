@@ -46,7 +46,7 @@ export const departmentApi = {
    * 获取部门树
    */
   getTree: (): Promise<DepartmentTreeApiResponse> => {
-    return apiClient.get('/departments');
+    return apiClient.get('/departments/tree');
   },
 
   /**

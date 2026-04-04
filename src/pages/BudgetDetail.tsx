@@ -19,10 +19,11 @@ export function BudgetDetail() {
       setLoading(true)
       setError(null)
       try {
-        const response = await budgetApi.getById(id)
-        if (response.data) {
-          setBudget(response.data)
-          setItems(response.data.items || [])
+        const response = await budgetApi.getById(id) as any
+        const budgetData = response.data?.data || response.data
+        if (budgetData) {
+          setBudget(budgetData)
+          setItems(budgetData.items || [])
         }
       } catch (err: any) {
         setError(err.response?.data?.message || '加载预算详情失败')
@@ -46,9 +47,10 @@ export function BudgetDetail() {
       await budgetApi.submitForApproval(budget.id)
       alert('提交审批成功')
       // 刷新数据
-      const response = await budgetApi.getById(budget.id)
-      if (response.data) {
-        setBudget(response.data)
+      const response = await budgetApi.getById(budget.id) as any
+      const budgetData = response.data?.data || response.data
+      if (budgetData) {
+        setBudget(budgetData)
       }
     } catch (err: any) {
       alert(err.response?.data?.message || '提交审批失败')

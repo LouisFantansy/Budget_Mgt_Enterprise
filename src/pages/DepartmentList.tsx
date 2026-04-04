@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Search, ChevronRight, ChevronDown, Building2, Users, Edit, Trash2 } from 'lucide-react'
+import { departmentApi } from '../api/modules/department.api'
 
 // Mock department data
 interface Department {
@@ -90,8 +91,8 @@ export function DepartmentList() {
     name: '',
     level: 1,
     parentId: '',
-    manager: '',
-    budgetAdmin: '',
+    managerId: '',
+    budgetAdminId: '',
   })
 
   const toggleExpand = (id: string) => {
@@ -139,8 +140,8 @@ export function DepartmentList() {
       name: '',
       level: 1,
       parentId: '',
-      manager: '',
-      budgetAdmin: '',
+      managerId: '',
+      budgetAdminId: '',
     })
     setShowModal(true)
   }
@@ -152,8 +153,8 @@ export function DepartmentList() {
       name: dept.name,
       level: dept.level,
       parentId: dept.parentId || '',
-      manager: dept.manager,
-      budgetAdmin: dept.budgetAdmin,
+      managerId: dept.manager || '',
+      budgetAdminId: dept.budgetAdmin || '',
     })
     setShowModal(true)
   }
@@ -174,53 +175,57 @@ export function DepartmentList() {
     setDepartments(deleteFromTree(departments))
   }
 
+  // Fetch departments on mount
+  useEffect(() => {
+    fetchDepartments()
+  }, [])
+
+  // Fetch departments from API
+  const fetchDepartments = async () => {
+    try {
+      const response = await departmentApi.getTree() as any
+      if (response && response.data) {
+        const depts = response.data.data || []
+        // Ensure departments is an array
+        setDepartments(Array.isArray(depts) ? depts : [depts])
+      }
+    } catch (err) {
+      console.error('Failed to fetch departments:', err)
+    }
+  }
+
   // Handle form submit
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    const newDept: Department = {
-      id: editingDept ? editingDept.id : `${Date.now()}`,
-      name: formData.name,
-      level: formData.level,
-      parentId: formData.level === 1 ? null : formData.parentId || null,
-      manager: formData.manager,
-      budgetAdmin: formData.budgetAdmin,
-    }
-
-    if (editingDept) {
-      // Update existing department
-      const updateInTree = (depts: Department[]): Department[] => {
-        return depts.map(d => {
-          if (d.id === newDept.id) {
-            return { ...newDept, children: d.children }
-          }
-          if (d.children) {
-            return { ...d, children: updateInTree(d.children) }
-          }
-          return d
+    try {
+      if (editingDept) {
+        // Update existing department
+        await departmentApi.update(editingDept.id, {
+          name: formData.name,
+          managerId: formData.managerId,
+          budgetAdminId: formData.budgetAdminId,
+        })
+      } else {
+        // Create new department - auto generate code from name
+        const code = formData.name.substring(0, 3).toUpperCase() || 'DEPT'
+        await departmentApi.create({
+          name: formData.name,
+          code: code,
+          level: formData.level,
+          parentId: formData.level === 1 ? null : formData.parentId || null,
+          managerId: formData.managerId,
+          budgetAdminId: formData.budgetAdminId,
         })
       }
-      setDepartments(updateInTree(departments))
-    } else {
-      // Add new department
-      const addToTree = (depts: Department[]): Department[] => {
-        if (formData.level === 1) {
-          return [...depts, newDept]
-        }
-        return depts.map(d => {
-          if (d.id === formData.parentId) {
-            return { ...d, children: [...(d.children || []), newDept] }
-          }
-          if (d.children) {
-            return { ...d, children: addToTree(d.children) }
-          }
-          return d
-        })
-      }
-      setDepartments(addToTree(departments))
+      
+      // Refresh department list
+      await fetchDepartments()
+      setShowModal(false)
+    } catch (err: any) {
+      console.error('Failed to save department:', err)
+      alert(err.response?.data?.message || '保存部门失败')
     }
-
-    setShowModal(false)
   }
 
   const renderDepartment = (dept: Department, level: number = 0) => {
@@ -303,7 +308,7 @@ export function DepartmentList() {
             <div style={{ width: 100 }}>操作</div>
           </div>
           <div className="dept-body">
-            {mockDepartments.map((dept) => renderDepartment(dept))}
+            {departments.map((dept) => renderDepartment(dept))}
           </div>
         </div>
       </div>
@@ -371,9 +376,9 @@ export function DepartmentList() {
                   <input
                     type="text"
                     className="input"
-                    value={formData.manager}
-                    onChange={(e) => setFormData({ ...formData, manager: e.target.value })}
-                    placeholder="请输入负责人姓名"
+                    value={formData.managerId}
+                    onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
+                    placeholder="请输入负责人ID或姓名"
                     required
                   />
                 </div>
@@ -382,9 +387,9 @@ export function DepartmentList() {
                   <input
                     type="text"
                     className="input"
-                    value={formData.budgetAdmin}
-                    onChange={(e) => setFormData({ ...formData, budgetAdmin: e.target.value })}
-                    placeholder="请输入预算管理员姓名"
+                    value={formData.budgetAdminId}
+                    onChange={(e) => setFormData({ ...formData, budgetAdminId: e.target.value })}
+                    placeholder="请输入预算管理员ID或姓名"
                     required
                   />
                 </div>

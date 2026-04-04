@@ -34,18 +34,22 @@ export function Mapping() {
         page,
         pageSize: pagination.pageSize,
         matchStatus: filterStatus || undefined,
-      })
+      }) as any
       
-      setMappings(response.data.items)
+      console.log('Mapping API response:', response)
+      const responseData = response.data?.data || response.data || {}
+      console.log('Mapping data:', responseData)
+      
+      setMappings(responseData.items || [])
       setPagination({
-        total: response.data.total,
-        page: response.data.page,
-        pageSize: response.data.pageSize,
-        totalPages: response.data.totalPages,
+        total: responseData.total || 0,
+        page: responseData.page || 1,
+        pageSize: responseData.pageSize || 20,
+        totalPages: responseData.totalPages || 0,
       })
     } catch (err: any) {
       console.error('Failed to fetch mappings:', err)
-      setError(err.response?.data?.message || '获取映射列表失败')
+      setError(err.response?.data?.message || err.message || '获取映射列表失败')
     } finally {
       setLoading(false)
     }
@@ -60,12 +64,13 @@ export function Mapping() {
       setAutoMatching(true)
       setError(null)
       
-      const result = await importExportApi.autoMatch()
+      const result = await importExportApi.autoMatch() as any
       
       // Refresh the list
       await fetchMappings(pagination.page)
       
-      alert(`自动匹配完成：成功匹配 ${result.data.matched} 条，共处理 ${result.data.total} 条`)
+      const resultData = result.data?.data || result.data || {}
+      alert(`自动匹配完成：成功匹配 ${resultData.matched || 0} 条，共处理 ${resultData.total || 0} 条`)
     } catch (err: any) {
       console.error('Auto match failed:', err)
       setError(err.response?.data?.message || '自动匹配失败')

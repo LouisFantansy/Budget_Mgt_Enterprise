@@ -1,6 +1,8 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { ArrowLeft, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react'
+import { purchaseApi } from '../api/modules/purchase.api'
+import { approvalApi } from '../api/modules/approval.api'
 
 interface ApprovalStep {
   step: number
@@ -28,43 +30,74 @@ interface PurchaseRequestDetail {
   createdAt: string
 }
 
-const mockRequest: PurchaseRequestDetail = {
-  id: '1',
-  requestNo: 'PR2024001',
-  applicant: '张三',
-  department: '研发部',
-  budgetItem: 'BUD-2024-001',
-  itemName: '测试晶圆',
-  specification: '8 inch',
-  quantity: 10,
-  unitPrice: 5000,
-  totalAmount: 50000,
-  purpose: '新产品开发验证',
-  status: 'pending',
-  approvals: [
-    { step: 1, role: '需求人', user: '张三', status: 'approved', date: '2024-03-20', comment: '提交申请' },
-    { step: 2, role: '部门负责人', user: '李部门', status: 'pending' },
-    { step: 3, role: '预算管理员', user: '张预算', status: 'pending' },
-    { step: 4, role: '财务', user: '王财务', status: 'pending' },
-    { step: 5, role: '采购部', user: '赵采购', status: 'pending' },
-  ],
-  createdAt: '2024-03-20',
-}
-
 export function PurchaseRequestDetail() {
-  const [request] = useState(mockRequest)
+  const { id } = useParams<{ id: string }>()
+  const [request, setRequest] = useState<PurchaseRequestDetail | null>(null)
+  const [loading, setLoading] = useState(true)
   const [comment, setComment] = useState('')
+
+  useEffect(() => {
+    if (id) {
+      fetchRequest()
+    }
+  }, [id])
+
+  const fetchRequest = async () => {
+    try {
+      setLoading(true)
+      const response = await purchaseApi.getById(id!) as any
+      if (response && response.data) {
+        setRequest(response.data.data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch request:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleApproval = async (action: 'approved' | 'rejected') => {
+    if (!id) return
+    try {
+      if (action === 'approved') {
+        await approvalApi.approve(id, { comment })
+      } else {
+        await approvalApi.reject(id, { reason: comment || '审批拒绝' })
+      }
+      alert(`已${action === 'approved' ? '批准' : '拒绝'}该申请`)
+      await fetchRequest()
+    } catch (err) {
+      console.error('Approval failed:', err)
+      alert('审批操作失败')
+    }
+  }
 
   const formatCurrency = (value: number) => `¥${(value / 10000).toFixed(2)}万`
 
-  const handleApproval = (status: 'approved' | 'rejected') => {
-    console.log('Approval:', { action: status, comment })
-    // In production, submit to backend
-    alert(`已${status === 'approved' ? '批准' : '拒绝'}该申请`)
+  if (loading) {
+    return (
+      <div className="purchase-detail-page">
+        <div className="loading-container">
+          <Loader2 className="spinner" size={32} />
+          <p>加载中...</p>
+        </div>
+      </div>
+    )
   }
 
-  const currentStep = request.approvals.find(a => a.status === 'pending')
-  const canApprove = currentStep && currentStep.step === 2 // Demo: assume user is dept head
+  if (!request) {
+    return (
+      <div className="purchase-detail-page">
+        <div className="error-container">
+          <p>未找到采购申请</p>
+          <Link to="/purchase" className="btn btn-primary">返回列表</Link>
+        </div>
+      </div>
+    )
+  }
+
+  const currentStep = request.approvals?.find(a => a.status === 'pending')
+  const canApprove = currentStep && currentStep.step === 2
 
   return (
     <div className="purchase-detail-page">
@@ -160,10 +193,10 @@ export function PurchaseRequestDetail() {
       {/* Approval Flow */}
       <div className="card mt-4">
         <div className="card-header">
-          <h3 className="card-title">审批流程（五级）</h3>
+          <h3 className="card-title">审批流程</h3>
         </div>
         <div className="approval-flow">
-          {request.approvals.map((approval, index) => (
+          {request.approvals?.map((approval, index) => (
             <div key={index} className="approval-step-item">
               <div className={`step-icon ${approval.status}`}>
                 {approval.status === 'approved' ? (
@@ -180,7 +213,7 @@ export function PurchaseRequestDetail() {
                 {approval.date && <div className="step-date">{approval.date}</div>}
                 {approval.comment && <div className="step-comment">{approval.comment}</div>}
               </div>
-              {index < request.approvals.length - 1 && <div className="step-line" />}
+              {index < (request.approvals?.length || 0) - 1 && <div className="step-line" />}
             </div>
           ))}
         </div>

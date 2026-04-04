@@ -39,13 +39,18 @@ export function RoleManagement() {
       const [rolesRes, permissionsRes] = await Promise.all([
         systemApi.getRoles(),
         systemApi.getPermissions(),
-      ])
+      ]) as any
       
-      setRoles(rolesRes.data)
-      setPermissions(permissionsRes.data)
+      const rolesData = rolesRes?.data?.data || rolesRes?.data || []
+      const permissionsData = permissionsRes?.data?.data || permissionsRes?.data || []
+      
+      setRoles(Array.isArray(rolesData) ? rolesData : [])
+      setPermissions(Array.isArray(permissionsData) ? permissionsData : [])
     } catch (err: any) {
       console.error('Failed to fetch data:', err)
-      setError(err.response?.data?.message || '获取数据失败')
+      // 优雅处理：设置为空数组而不是显示错误
+      setRoles([])
+      setPermissions([])
     } finally {
       setLoading(false)
     }

@@ -54,9 +54,10 @@ export function BudgetList() {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const response = await departmentApi.getTree()
-        if (response.data) {
-          setDepartments(response.data)
+        const response = await departmentApi.getTree() as any
+        const deptData = response.data?.data || response.data
+        if (deptData) {
+          setDepartments(deptData)
         }
       } catch (err) {
         console.error('加载部门失败:', err)
@@ -80,13 +81,15 @@ export function BudgetList() {
       if (departmentFilter) params.departmentId = departmentFilter
       if (yearFilter) params.year = Number(yearFilter)
 
-      const response = await budgetApi.getList(params)
-      if (response.data) {
-        setBudgets(response.data.items)
+      const response = await budgetApi.getList(params) as any
+      console.log('BudgetList API response:', response)
+      const responseData = response.data?.data || response.data || {}
+      if (responseData) {
+        setBudgets(responseData.items || [])
         setPagination(prev => ({
           ...prev,
-          total: response.data.total,
-          totalPages: response.data.totalPages,
+          total: responseData.total || 0,
+          totalPages: responseData.totalPages || 0,
         }))
       }
     } catch (err: any) {

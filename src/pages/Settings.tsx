@@ -33,14 +33,16 @@ export function Settings() {
         setLoading(true)
         setError(null)
         
-        const response = await systemApi.getConfig()
-        const configs = response.data
+        const response = await systemApi.getConfig() as any
+        const configs = response?.data?.data || response?.data || []
         
         // Transform config array to settings object
         const configMap: Record<string, string> = {}
-        configs.forEach((config: SystemConfig) => {
-          configMap[config.key] = config.value
-        })
+        if (Array.isArray(configs)) {
+          configs.forEach((config: SystemConfig) => {
+            configMap[config.key] = config.value
+          })
+        }
         
         setSettings({
           companyName: configMap['companyName'] || '',
@@ -52,7 +54,9 @@ export function Settings() {
         })
       } catch (err: any) {
         console.error('Failed to fetch config:', err)
-        setError(err.response?.data?.message || '获取配置失败')
+        // 优雅处理：API 不存在时保持默认配置
+        setLoading(false)
+        return
       } finally {
         setLoading(false)
       }

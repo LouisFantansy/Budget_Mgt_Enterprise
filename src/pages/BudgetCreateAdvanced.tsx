@@ -198,8 +198,9 @@ export function BudgetCreateAdvanced() {
       })
       
       // 提交审批
-      if (response.data) {
-        await budgetApi.submitForApproval(response.data.id)
+      const budgetData = response.data?.data || response.data
+      if (budgetData) {
+        await budgetApi.submitForApproval(budgetData.id)
       }
       
       alert('提交审批成功')

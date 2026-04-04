@@ -60,14 +60,15 @@ export function UserManagement() {
         pageSize: pagination.pageSize,
         keyword: keyword || undefined,
         status: statusFilter || undefined,
-      })
+      }) as any
       
-      setUsers(response.data.items)
+      const responseData = response?.data?.data || response?.data || {}
+      setUsers(Array.isArray(responseData.items) ? responseData.items : [])
       setPagination({
-        total: response.data.total,
-        page: response.data.page,
-        pageSize: response.data.pageSize,
-        totalPages: response.data.totalPages,
+        total: responseData.total || 0,
+        page: responseData.page || 1,
+        pageSize: responseData.pageSize || 20,
+        totalPages: responseData.totalPages || 0,
       })
     } catch (err: any) {
       console.error('Failed to fetch users:', err)
@@ -83,9 +84,10 @@ export function UserManagement() {
       const [rolesRes] = await Promise.all([
         systemApi.getRoles(),
         // Could add department API call here if available
-      ])
+      ]) as any
       
-      setAvailableRoles(rolesRes.data.map(r => ({ id: r.id, displayName: r.displayName })))
+      const rolesData = rolesRes.data?.data || rolesRes.data || []
+      setAvailableRoles(rolesData.map((r: any) => ({ id: r.id, displayName: r.displayName })))
     } catch (err: any) {
       console.error('Failed to fetch options:', err)
     }
