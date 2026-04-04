@@ -44,12 +44,12 @@ export const routes = [
   },
   {
     path: '/budgets/create',
-    element: <BudgetCreate />,
+    element: <BudgetCreateAdvanced />,
     requiresAuth: true,
   },
   {
-    path: '/budgets/create-advanced',
-    element: <BudgetCreateAdvanced />,
+    path: '/budgets/create-simple',
+    element: <BudgetCreate />,
     requiresAuth: true,
   },
   {
