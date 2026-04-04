@@ -62,15 +62,18 @@ export function BudgetCreateAdvanced() {
     departmentId: '',
     type: 'OPEX' as BudgetType,
     year: new Date().getFullYear(),
+    paymentEntity: '',      // 付款主体（全局，明细项继承）
+    group: '',              // 组别（全局，明细项继承）
+    accountCode: '',        // 会计科目（全局，明细项继承）
     remark: '',
   })
 
-  // 创建默认条目
+  // 创建默认条目（继承基本信息的全局属性）
   const createEmptyItem = (): BudgetItemDetail => ({
     id: Date.now().toString(),
-    paymentEntity: '',
-    group: '',
-    accountCode: '',
+    paymentEntity: formData.paymentEntity,  // 继承全局付款主体
+    group: formData.group,                  // 继承全局组别
+    accountCode: formData.accountCode,      // 继承全局会计科目
     deptLevel1: '',
     deptLevel2: '',
     deptLevel3: '',
@@ -152,6 +155,18 @@ const updateItem = (id: string, field: keyof BudgetItemDetail, value: any) => {
       alert('请选择编制部门')
       return
     }
+    if (!formData.paymentEntity) {
+      alert('请填写付款主体')
+      return
+    }
+    if (!formData.group) {
+      alert('请填写组别')
+      return
+    }
+    if (!formData.accountCode) {
+      alert('请填写会计科目代码')
+      return
+    }
     
     const validItems = items.filter(item => item.name && item.unitPrice > 0)
     if (validItems.length === 0) {
@@ -185,7 +200,7 @@ const updateItem = (id: string, field: keyof BudgetItemDetail, value: any) => {
         year: formData.year,
         items: budgetItems,
         remark: formData.remark,
-      })
+      } as any)
       
       alert('草稿保存成功')
       navigate('/budgets')
@@ -199,6 +214,18 @@ const updateItem = (id: string, field: keyof BudgetItemDetail, value: any) => {
   const handleSubmitApproval = async () => {
     if (!formData.departmentId) {
       alert('请选择编制部门')
+      return
+    }
+    if (!formData.paymentEntity) {
+      alert('请填写付款主体')
+      return
+    }
+    if (!formData.group) {
+      alert('请填写组别')
+      return
+    }
+    if (!formData.accountCode) {
+      alert('请填写会计科目代码')
       return
     }
     
@@ -234,7 +261,7 @@ const updateItem = (id: string, field: keyof BudgetItemDetail, value: any) => {
         year: formData.year,
         items: budgetItems,
         remark: formData.remark,
-      }) as any
+      } as any) as any
       
       // 提交审批
       const budgetData = (response?.data?.data || response?.data) as any
@@ -327,6 +354,36 @@ const updateItem = (id: string, field: keyof BudgetItemDetail, value: any) => {
                 </option>
               ))}
             </select>
+          </div>
+          <div className="input-group">
+            <label className="input-label">付款主体 *</label>
+            <input 
+              type="text" 
+              className="input" 
+              placeholder="托管账户、汇也据户等"
+              value={formData.paymentEntity}
+              onChange={(e) => setFormData({ ...formData, paymentEntity: e.target.value })}
+            />
+          </div>
+          <div className="input-group">
+            <label className="input-label">组别 *</label>
+            <input 
+              type="text" 
+              className="input" 
+              placeholder="成本中心、业务组等"
+              value={formData.group}
+              onChange={(e) => setFormData({ ...formData, group: e.target.value })}
+            />
+          </div>
+          <div className="input-group">
+            <label className="input-label">会计科目代码 *</label>
+            <input 
+              type="text" 
+              className="input" 
+              placeholder="6100、6200、1001等"
+              value={formData.accountCode}
+              onChange={(e) => setFormData({ ...formData, accountCode: e.target.value })}
+            />
           </div>
           <div className="input-group">
             <label className="input-label">版本</label>
