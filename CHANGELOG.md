@@ -8,6 +8,28 @@
 
 ### 新增
 
+#### 年度预算编制模块增强
+
+**新增字段** (src/types/index.ts):
+- `paymentEntity` - 付款主体
+- `group` - 组别
+- `accountCode` - 会计科目
+- `monthlyQuantities` - 1-12月每月采购数量
+- `monthlyAmounts` - 1-12月每月采购金额
+
+**增强功能** (src/pages/BudgetCreateAdvanced.tsx):
+- 新增付款主体、组别、会计科目输入列
+- 新增1-12月月度金额列（自动计算）
+- 自动计算总价和月度金额
+- 优化表格布局，添加清晰注释
+
+**新增文档**:
+- `docs/BUDGET_CREATION_GUIDE.md` - 年度预算编制使用指南
+
+**单元测试** (src/pages/__tests__/BudgetCreateAdvanced.test.ts):
+- 16个测试用例全部通过
+- 覆盖计算逻辑、验证逻辑、汇总分析、边界条件
+
 ### 修改
 
 ### 修复

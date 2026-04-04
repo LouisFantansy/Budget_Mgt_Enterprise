@@ -131,6 +131,13 @@ export interface BudgetItem {
   supplier?: string;
   deliveryDate?: string;
   sortOrder: number;
+  // 扩展字段：满足商业预算管理需求
+  paymentEntity?: string;      // 付款主体
+  group?: string;              // 组别
+  accountCode?: string;        // 会计科目
+  amount?: number;             // 金额（用于明细）
+  monthlyQuantities?: number[]; // 1-12月每月采购数量
+  monthlyAmounts?: number[];    // 1-12月每月采购金额
 }
 
 export interface BudgetAdjustment {

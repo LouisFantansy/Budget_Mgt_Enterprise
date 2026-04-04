@@ -1,13 +1,37 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Save, Send, Copy, Loader2 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, Send, Copy, Loader2, Calculator } from 'lucide-react'
 import { budgetApi } from '../api/modules/budget.api'
 import { departmentApi, DepartmentTreeNode } from '../api/modules/department.api'
 import type { CreateBudgetItemRequest } from '../api/types/budget.types'
 import type { BudgetType } from '../types'
 
+/**
+ * 预算条目明细接口
+ * @description 包含年度预算编制所需的所有字段
+ * @field id - 条目唯一标识
+ * @field paymentEntity - 付款主体
+ * @field group - 组别
+ * @field accountCode - 会计科目
+ * @field category - 费用类别
+ * @field name - 采购名称
+ * @field specification - 规格型号
+ * @field functionDesc - 功能描述
+ * @field unitPrice - 单价
+ * @field quantity - 总数量
+ * @field totalAmount - 总价
+ * @field project - 所属项目
+ * @field purpose - 用途说明
+ * @field supplier - 供应商
+ * @field deliveryDate - 预计交付日期
+ * @field monthlyQuantity - 1-12月每月采购数量
+ * @field monthlyAmount - 1-12月每月采购金额
+ */
 interface BudgetItemDetail {
   id: string
+  paymentEntity: string   // 付款主体
+  group: string           // 组别
+  accountCode: string     // 会计科目
   deptLevel1: string
   deptLevel2: string
   deptLevel3: string
@@ -17,11 +41,13 @@ interface BudgetItemDetail {
   functionDesc: string
   unitPrice: number
   quantity: number
-  monthlyQuantity: number[]
+  totalAmount: number     // 总价（自动计算）
   project: string
   purpose: string
   supplier: string
   deliveryDate: string
+  monthlyQuantity: number[] // 1-12月每月采购数量
+  monthlyAmount: number[]   // 1-12月每月采购金额
 }
 
 export function BudgetCreateAdvanced() {
@@ -37,25 +63,31 @@ export function BudgetCreateAdvanced() {
     remark: '',
   })
 
-  const [items, setItems] = useState<BudgetItemDetail[]>([
-    {
-      id: '1',
-      deptLevel1: '',
-      deptLevel2: '',
-      deptLevel3: '',
-      category: '',
-      name: '',
-      specification: '',
-      functionDesc: '',
-      unitPrice: 0,
-      quantity: 0,
-      monthlyQuantity: Array(12).fill(0),
-      project: '',
-      purpose: '',
-      supplier: '',
-      deliveryDate: '',
-    },
-  ])
+  // 创建默认条目
+  const createEmptyItem = (): BudgetItemDetail => ({
+    id: Date.now().toString(),
+    paymentEntity: '',
+    group: '',
+    accountCode: '',
+    deptLevel1: '',
+    deptLevel2: '',
+    deptLevel3: '',
+    category: '',
+    name: '',
+    specification: '',
+    functionDesc: '',
+    unitPrice: 0,
+    quantity: 0,
+    totalAmount: 0,
+    project: '',
+    purpose: '',
+    supplier: '',
+    deliveryDate: '',
+    monthlyQuantity: Array(12).fill(0),
+    monthlyAmount: Array(12).fill(0),
+  })
+
+  const [items, setItems] = useState<BudgetItemDetail[]>([createEmptyItem()])
 
   const categories = ['材料费', '测试费', '设备费', '租赁费', '差旅费', '咨询费', '服务费', '其他']
 
@@ -78,24 +110,7 @@ export function BudgetCreateAdvanced() {
   }, [])
 
   const addItem = () => {
-    const newItem: BudgetItemDetail = {
-      id: Date.now().toString(),
-      deptLevel1: '',
-      deptLevel2: '',
-      deptLevel3: '',
-      category: '',
-      name: '',
-      specification: '',
-      functionDesc: '',
-      unitPrice: 0,
-      quantity: 0,
-      monthlyQuantity: Array(12).fill(0),
-      project: '',
-      purpose: '',
-      supplier: '',
-      deliveryDate: '',
-    }
-    setItems([...items, newItem])
+    setItems([...items, createEmptyItem()])
   }
 
   const removeItem = (id: string) => {
@@ -104,9 +119,28 @@ export function BudgetCreateAdvanced() {
     }
   }
 
-  const updateItem = (id: string, field: keyof BudgetItemDetail, value: any) => {
-    setItems(items.map((item) => (item.id === id ? { ...item, [field]: value } : item)))
-  }
+  /**
+ * 更新条目字段
+ * @param id - 条目ID
+ * @param field - 字段名
+ * @param value - 新值
+ * @description 当单价或数量变化时，自动计算总价
+ */
+const updateItem = (id: string, field: keyof BudgetItemDetail, value: any) => {
+  setItems(items.map((item) => {
+    if (item.id !== id) return item
+    const updated = { ...item, [field]: value }
+    // 自动计算总价
+    if (field === 'unitPrice' || field === 'quantity') {
+      updated.totalAmount = updated.unitPrice * updated.quantity
+    }
+    // 自动分配月度金额
+    if (field === 'monthlyQuantity') {
+      updated.monthlyAmount = (value as number[]).map(qty => qty * updated.unitPrice)
+    }
+    return updated
+  }))
+}
 
   const handleSaveDraft = async () => {
     if (!formData.departmentId) {
@@ -195,11 +229,11 @@ export function BudgetCreateAdvanced() {
         year: formData.year,
         items: budgetItems,
         remark: formData.remark,
-      })
+      }) as any
       
       // 提交审批
-      const budgetData = response.data?.data || response.data
-      if (budgetData) {
+      const budgetData = (response?.data?.data || response?.data) as any
+      if (budgetData?.id) {
         await budgetApi.submitForApproval(budgetData.id)
       }
       
@@ -309,37 +343,84 @@ export function BudgetCreateAdvanced() {
           <table className="budget-table">
             <thead>
               <tr>
-                <th rowSpan={2} style={{ width: 120 }}>一级部门</th>
-                <th rowSpan={2} style={{ width: 120 }}>二级部门</th>
-                <th rowSpan={2} style={{ width: 120 }}>三级部门</th>
-                <th rowSpan={2} style={{ width: 100 }}>类别</th>
-                <th rowSpan={2} style={{ width: 150 }}>采购名称</th>
-                <th rowSpan={2} style={{ width: 120 }}>规格型号</th>
-                <th rowSpan={2} style={{ width: 120 }}>功能描述</th>
-                <th rowSpan={2} style={{ width: 80 }}>单价</th>
-                <th rowSpan={2} style={{ width: 80 }}>数量</th>
+                <th rowSpan={2} style={{ width: 80 }}>付款主体</th>
+                <th rowSpan={2} style={{ width: 80 }}>组别</th>
+                <th rowSpan={2} style={{ width: 80 }}>会计科目</th>
+                <th rowSpan={2} style={{ width: 100 }}>一级部门</th>
+                <th rowSpan={2} style={{ width: 100 }}>二级部门</th>
+                <th rowSpan={2} style={{ width: 100 }}>三级部门</th>
+                <th rowSpan={2} style={{ width: 80 }}>类别</th>
+                <th rowSpan={2} style={{ width: 120 }}>采购名称</th>
+                <th rowSpan={2} style={{ width: 100 }}>规格型号</th>
+                <th rowSpan={2} style={{ width: 70 }}>单价</th>
+                <th rowSpan={2} style={{ width: 60 }}>数量</th>
+                <th rowSpan={2} style={{ width: 60 }}>年度总额</th>
                 <th colSpan={12}>每月数量</th>
-                <th rowSpan={2} style={{ width: 100 }}>年度总额</th>
-                <th rowSpan={2} style={{ width: 80 }}>操作</th>
+                <th colSpan={12}>每月金额</th>
+                <th rowSpan={2} style={{ width: 80 }}>所属项目</th>
+                <th rowSpan={2} style={{ width: 60 }}>操作</th>
               </tr>
               <tr>
-                <th style={{ width: 60 }}>1月</th>
-                <th style={{ width: 60 }}>2月</th>
-                <th style={{ width: 60 }}>3月</th>
-                <th style={{ width: 60 }}>4月</th>
-                <th style={{ width: 60 }}>5月</th>
-                <th style={{ width: 60 }}>6月</th>
-                <th style={{ width: 60 }}>7月</th>
-                <th style={{ width: 60 }}>8月</th>
-                <th style={{ width: 60 }}>9月</th>
-                <th style={{ width: 60 }}>10月</th>
-                <th style={{ width: 60 }}>11月</th>
-                <th style={{ width: 60 }}>12月</th>
+                <th style={{ width: 45 }}>1月</th>
+                <th style={{ width: 45 }}>2月</th>
+                <th style={{ width: 45 }}>3月</th>
+                <th style={{ width: 45 }}>4月</th>
+                <th style={{ width: 45 }}>5月</th>
+                <th style={{ width: 45 }}>6月</th>
+                <th style={{ width: 45 }}>7月</th>
+                <th style={{ width: 45 }}>8月</th>
+                <th style={{ width: 45 }}>9月</th>
+                <th style={{ width: 45 }}>10月</th>
+                <th style={{ width: 45 }}>11月</th>
+                <th style={{ width: 45 }}>12月</th>
+                <th style={{ width: 50 }}>1月</th>
+                <th style={{ width: 50 }}>2月</th>
+                <th style={{ width: 50 }}>3月</th>
+                <th style={{ width: 50 }}>4月</th>
+                <th style={{ width: 50 }}>5月</th>
+                <th style={{ width: 50 }}>6月</th>
+                <th style={{ width: 50 }}>7月</th>
+                <th style={{ width: 50 }}>8月</th>
+                <th style={{ width: 50 }}>9月</th>
+                <th style={{ width: 50 }}>10月</th>
+                <th style={{ width: 50 }}>11月</th>
+                <th style={{ width: 50 }}>12月</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item) => (
                 <tr key={item.id}>
+                  {/* 付款主体 */}
+                  <td>
+                    <input
+                      type="text"
+                      className="input-mini"
+                      value={item.paymentEntity}
+                      placeholder="付款方"
+                      onChange={(e) => updateItem(item.id, 'paymentEntity', e.target.value)}
+                    />
+                  </td>
+                  {/* 组别 */}
+                  <td>
+                    <input
+                      type="text"
+                      className="input-mini"
+                      value={item.group}
+                      placeholder="组别"
+                      onChange={(e) => updateItem(item.id, 'group', e.target.value)}
+                    />
+                  </td>
+                  {/* 会计科目 */}
+                  <td>
+                    <input
+                      type="text"
+                      className="input-mini"
+                      value={item.accountCode}
+                      placeholder="科目"
+                      onChange={(e) => updateItem(item.id, 'accountCode', e.target.value)}
+                    />
+                  </td>
+                  {/* 一级部门 */}
                   <td>
                     <select
                       className="select-mini"
@@ -352,6 +433,7 @@ export function BudgetCreateAdvanced() {
                       ))}
                     </select>
                   </td>
+                  {/* 二级部门 */}
                   <td>
                     <select
                       className="select-mini"
@@ -364,6 +446,7 @@ export function BudgetCreateAdvanced() {
                       ))}
                     </select>
                   </td>
+                  {/* 三级部门 */}
                   <td>
                     <select
                       className="select-mini"
@@ -378,6 +461,7 @@ export function BudgetCreateAdvanced() {
                         ))}
                     </select>
                   </td>
+                  {/* 类别 */}
                   <td>
                     <select
                       className="select-mini"
@@ -390,6 +474,7 @@ export function BudgetCreateAdvanced() {
                       ))}
                     </select>
                   </td>
+                  {/* 采购名称 */}
                   <td>
                     <input
                       type="text"
@@ -398,6 +483,7 @@ export function BudgetCreateAdvanced() {
                       onChange={(e) => updateItem(item.id, 'name', e.target.value)}
                     />
                   </td>
+                  {/* 规格型号 */}
                   <td>
                     <input
                       type="text"
@@ -406,14 +492,7 @@ export function BudgetCreateAdvanced() {
                       onChange={(e) => updateItem(item.id, 'specification', e.target.value)}
                     />
                   </td>
-                  <td>
-                    <input
-                      type="text"
-                      className="input-mini"
-                      value={item.functionDesc}
-                      onChange={(e) => updateItem(item.id, 'functionDesc', e.target.value)}
-                    />
-                  </td>
+                  {/* 单价 */}
                   <td>
                     <input
                       type="number"
@@ -422,6 +501,7 @@ export function BudgetCreateAdvanced() {
                       onChange={(e) => updateItem(item.id, 'unitPrice', Number(e.target.value))}
                     />
                   </td>
+                  {/* 数量 */}
                   <td>
                     <input
                       type="number"
@@ -430,6 +510,11 @@ export function BudgetCreateAdvanced() {
                       onChange={(e) => updateItem(item.id, 'quantity', Number(e.target.value))}
                     />
                   </td>
+                  {/* 年度总额 */}
+                  <td className="font-bold text-primary">
+                    ¥{item.totalAmount.toLocaleString()}
+                  </td>
+                  {/* 1-12月每月数量 */}
                   {item.monthlyQuantity.map((qty, i) => (
                     <td key={i}>
                       <input
@@ -444,7 +529,22 @@ export function BudgetCreateAdvanced() {
                       />
                     </td>
                   ))}
-                  <td>¥{(item.unitPrice * item.quantity).toLocaleString()}</td>
+                  {/* 1-12月每月金额 */}
+                  {item.monthlyAmount.map((amt, i) => (
+                    <td key={i} className="text-sm text-secondary">
+                      ¥{amt.toLocaleString()}
+                    </td>
+                  ))}
+                  {/* 所属项目 */}
+                  <td>
+                    <input
+                      type="text"
+                      className="input-mini"
+                      value={item.project}
+                      onChange={(e) => updateItem(item.id, 'project', e.target.value)}
+                    />
+                  </td>
+                  {/* 操作 */}
                   <td>
                     <button className="btn-icon-sm" onClick={() => removeItem(item.id)}>
                       <Trash2 size={14} />
@@ -455,9 +555,10 @@ export function BudgetCreateAdvanced() {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={10} className="text-right font-bold">
+                <td colSpan={16} className="text-right font-bold">
                   合计：
                 </td>
+                <td colSpan={12}></td>
                 <td colSpan={12}></td>
                 <td className="font-bold text-primary">¥{totalAmount.toLocaleString()}</td>
                 <td></td>
