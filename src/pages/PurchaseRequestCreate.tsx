@@ -33,20 +33,21 @@ export function PurchaseRequestCreate() {
   const fetchBudgets = async () => {
     try {
       setLoading(true)
-      const response = await budgetApi.getList({ page: 1, pageSize: 100, status: 'APPROVED' as any }) as any
-      if (response && response.data) {
-        const items = response.data.data?.items || []
-        // 转换为 BudgetItem 格式
-        const formattedItems = items.map((item: any) => ({
-          id: item.id,
-          code: item.budgetNo || item.code,
-          name: item.name,
-          balance: Number(item.totalAmount) - Number(item.usedAmount || 0),
-        }))
-        setBudgetItems(formattedItems)
-      }
+      const response = (await budgetApi.getList({ page: 1, pageSize: 100, status: 'APPROVED' as any })) as any
+      // API 响应解包：统一处理响应格式
+      const responseData = response?.data?.data || response?.data || {}
+      const items = responseData?.items || []
+      // 转换为 BudgetItem 格式
+      const formattedItems = (Array.isArray(items) ? items : []).map((item: any) => ({
+        id: item.id,
+        code: item.budgetNo || item.code,
+        name: item.name,
+        balance: Number(item.totalAmount) - Number(item.usedAmount || 0),
+      }))
+      setBudgetItems(formattedItems)
     } catch (err) {
       console.error('Failed to fetch budgets:', err)
+      setBudgetItems([])
     } finally {
       setLoading(false)
     }

@@ -25,20 +25,22 @@ export function Dashboard() {
       try {
         setLoading(true)
         setError(null)
-        const response = await reportApi.getDashboard() as any
-        if (response.data && response.data.code === 200) {
-          setDashboardData(response.data.data)
+        const response = (await reportApi.getDashboard()) as any
+        // API 响应解包：统一处理响应格式
+        const dashData = response?.data?.data || response?.data
+        if (dashData) {
+          setDashboardData(dashData)
         } else {
-          setError(response.data?.message || '获取仪表盘数据失败')
+          setError('获取仪表板数据失败')
         }
       } catch (err: any) {
         console.error('Failed to fetch dashboard data:', err)
-        setError(err.response?.data?.message || '获取仪表盘数据失败')
+        setError(err.response?.data?.message || '获取仪表板数据失败')
       } finally {
         setLoading(false)
       }
     }
-
+  
     fetchDashboard()
   }, [])
 

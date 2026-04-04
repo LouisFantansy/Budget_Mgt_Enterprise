@@ -35,12 +35,15 @@ export function BudgetCreate() {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const response = await departmentApi.getTree()
-        if (response.data) {
-          setDepartments(response.data)
+        const response = (await departmentApi.getTree()) as any
+        // API 响应解包：体调不一致，统一处理
+        const deptData = response?.data?.data || response?.data || []
+        if (Array.isArray(deptData)) {
+          setDepartments(deptData)
         }
       } catch (err) {
         console.error('加载部门失败:', err)
+        setDepartments([])
       }
     }
     fetchDepartments()

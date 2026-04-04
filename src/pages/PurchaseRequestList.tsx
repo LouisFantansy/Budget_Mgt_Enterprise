@@ -36,17 +36,18 @@ export function PurchaseRequestList() {
   const fetchRequests = async () => {
     try {
       setLoading(true)
-      const response = await purchaseApi.getList({ 
+      const response = (await purchaseApi.getList({ 
         page: 1, 
         pageSize: 50,
         status: statusFilter.toUpperCase() as any || undefined 
-      }) as any
-      if (response && response.data) {
-        const items = response.data.data?.items || []
-        setRequests(items)
-      }
+      })) as any
+      // API 响应解包：统一处理响应格式
+      const responseData = response?.data?.data || response?.data || {}
+      const items = responseData?.items || []
+      setRequests(Array.isArray(items) ? items : [])
     } catch (err) {
       console.error('Failed to fetch purchase requests:', err)
+      setRequests([])
     } finally {
       setLoading(false)
     }

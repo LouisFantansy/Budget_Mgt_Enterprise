@@ -35,11 +35,12 @@ export function Analysis() {
           reportApi.getDepartmentRanking({ year }),
           reportApi.getMonthlyTrend({ year }),
           reportApi.getCategoryAnalysis({ year }),
-        ])
+        ]) as any[]
         
-        setDepartmentRanking(rankingRes.data)
-        setMonthlyTrend(trendRes.data)
-        setCategoryAnalysis(categoryRes.data)
+        // API 响应解包：统一处理响应格式
+        setDepartmentRanking(rankingRes?.data?.data || rankingRes?.data || [])
+        setMonthlyTrend(trendRes?.data?.data || trendRes?.data || [])
+        setCategoryAnalysis(categoryRes?.data?.data || categoryRes?.data || [])
       } catch (err: any) {
         console.error('Failed to fetch analysis data:', err)
         setError(err.response?.data?.message || '获取分析数据失败')

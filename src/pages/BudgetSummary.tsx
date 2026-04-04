@@ -29,21 +29,21 @@ export function BudgetSummary() {
     try {
       setLoading(true)
       setError(null)
-      const response = await budgetApi.getList({ 
+      const response = (await budgetApi.getList({ 
         page: 1, 
         pageSize: 50,
         type: filterType as any || undefined,
         status: filterStatus.toUpperCase() as any || undefined
-      }) as any
-      console.log('Budget API response:', response)
-      if (response && response.data) {
-        const items = response.data.data?.items || []
-        console.log('Budget items:', items)
-        setSummaries(items)
-      }
+      })) as any
+      
+      // API 响应解包：统一处理响应格式
+      const responseData = response?.data?.data || response?.data || {}
+      const items = responseData?.items || responseData || []
+      setSummaries(Array.isArray(items) ? items : [])
     } catch (err: any) {
       console.error('Failed to fetch summaries:', err)
       setError(err.message || '获取数据失败')
+      setSummaries([])
     } finally {
       setLoading(false)
     }
