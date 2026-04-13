@@ -18,6 +18,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let message = 'Internal server error';
     let errors = null;
 
+    console.error('=== Exception Filter ===');
+    console.error('Exception type:', exception?.constructor?.name);
+    console.error('Exception:', exception);
+
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
@@ -33,7 +37,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message = exception.message;
     }
 
-    const errorResponse = {
+    const errorResponse: any = {
       code: status,
       message,
       timestamp: new Date().toISOString(),
@@ -46,10 +50,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     // 记录错误日志
-    console.error('Exception caught:', {
-      ...errorResponse,
-      stack: exception instanceof Error ? exception.stack : undefined,
-    });
+    console.error('Response:', errorResponse);
 
     response.status(status).json(errorResponse);
   }

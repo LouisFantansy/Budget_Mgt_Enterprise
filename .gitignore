@@ -38,13 +38,12 @@ yarn-error.log*
 logs/
 *.log
 
-# Database
-*.sql
-!migrations/*.sql
-
 # Uploads
 uploads/
 temp/
 
 # OS
 Thumbs.db
+
+# CodeArts
+.codeartsdoer/

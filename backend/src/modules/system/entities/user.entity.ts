@@ -20,7 +20,7 @@ export class User {
   @Column({ length: 255 })
   password: string;
 
-  @Column({ length: 100 })
+  @Column({ length: 100, name: 'real_name' })
   realName: string;
 
   @Column({ length: 100, nullable: true })
@@ -29,7 +29,7 @@ export class User {
   @Column({ length: 20, nullable: true })
   phone: string;
 
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ type: 'uuid', nullable: true, name: 'department_id' })
   departmentId: string;
 
   @Column({
@@ -38,13 +38,13 @@ export class User {
   })
   status: string;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'timestamp', nullable: true, name: 'last_login_at' })
   lastLoginAt: Date;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
   @ManyToMany(() => Role, (role) => role.users, {

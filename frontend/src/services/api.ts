@@ -29,7 +29,12 @@ api.interceptors.request.use(
 // 响应拦截器
 api.interceptors.response.use(
   (response) => {
-    return response.data;
+    // 兼容后端统一响应格式：{ code, message, data, timestamp }
+    const payload = response.data;
+    if (payload && typeof payload === 'object' && 'data' in payload) {
+      return payload.data;
+    }
+    return payload;
   },
   async (error) => {
     const originalRequest = error.config;

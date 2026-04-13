@@ -11,14 +11,52 @@ interface AuthState {
   error: string | null;
 }
 
-const initialState: AuthState = {
-  isAuthenticated: false,
-  user: null,
-  accessToken: null,
-  refreshToken: null,
-  loading: false,
-  error: null,
+// 从 localStorage 恢复认证状态
+const loadAuthState = (): AuthState => {
+  try {
+    const serializedState = localStorage.getItem('authState');
+    if (serializedState) {
+      const state = JSON.parse(serializedState);
+      return {
+        isAuthenticated: true,
+        user: state.user,
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
+        loading: false,
+        error: null,
+      };
+    }
+  } catch (e) {
+    console.error('Failed to load auth state:', e);
+  }
+  return {
+    isAuthenticated: false,
+    user: null,
+    accessToken: null,
+    refreshToken: null,
+    loading: false,
+    error: null,
+  };
 };
+
+const saveAuthState = (state: AuthState) => {
+  try {
+    if (state.isAuthenticated && state.accessToken && state.user) {
+      const serializedState = JSON.stringify({
+        user: state.user,
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
+      });
+      localStorage.setItem('authState', serializedState);
+    } else {
+      localStorage.removeItem('authState');
+    }
+  } catch (e) {
+    console.error('Failed to save auth state:', e);
+  }
+};
+
+const initialState: AuthState = loadAuthState();
 
 // 异步thunk
 export const login = createAsyncThunk(
@@ -58,15 +96,18 @@ const authSlice = createSlice({
       state.accessToken = action.payload.accessToken;
       state.refreshToken = action.payload.refreshToken;
       state.user = action.payload.user;
+      saveAuthState(state);
     },
     clearCredentials: (state) => {
       state.isAuthenticated = false;
       state.accessToken = null;
       state.refreshToken = null;
       state.user = null;
+      saveAuthState(state);
     },
     updateUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
+      saveAuthState(state);
     },
   },
   extraReducers: (builder) => {
@@ -81,6 +122,7 @@ const authSlice = createSlice({
       state.accessToken = action.payload.accessToken;
       state.refreshToken = action.payload.refreshToken;
       state.user = action.payload.user;
+      saveAuthState(state);
     });
     builder.addCase(login.rejected, (state, action) => {
       state.loading = false;
@@ -93,11 +135,13 @@ const authSlice = createSlice({
       state.accessToken = null;
       state.refreshToken = null;
       state.user = null;
+      saveAuthState(state);
     });
 
     // refreshToken
     builder.addCase(refreshAccessToken.fulfilled, (state, action) => {
       state.accessToken = action.payload.accessToken;
+      saveAuthState(state);
     });
   },
 });

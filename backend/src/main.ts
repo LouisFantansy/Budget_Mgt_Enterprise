@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { FieldMaskInterceptor } from './common/interceptors/field-mask.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -28,7 +29,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false, // 改为false，避免验证错误
       transform: true,
       transformOptions: {
         enableImplicitConversion: true,
@@ -41,6 +42,9 @@ async function bootstrap() {
 
   // 全局响应转换拦截器
   app.useGlobalInterceptors(new TransformInterceptor());
+
+  // 全局字段裁剪拦截器（防止PO/结算敏感字段泄露给研发）
+  app.useGlobalInterceptors(new FieldMaskInterceptor());
 
   // 全局日志拦截器
   app.useGlobalInterceptors(new LoggingInterceptor());

@@ -2,10 +2,10 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
-import { User } from '../system/entities/user.entity';
-import { LoginDto } from './dto/login.dto';
-import { LoginResponseDto } from './dto/login-response.dto';
+import * as bcrypt from 'bcryptjs';
+import { User } from '../../system/entities/user.entity';
+import { LoginDto } from '../dto/login.dto';
+import { LoginResponseDto } from '../dto/login-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -21,57 +21,84 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<LoginResponseDto> {
     const { username, password } = loginDto;
 
-    // 查找用户
-    const user = await this.userRepository.findOne({
-      where: { username },
-      relations: ['roles'],
-    });
+    console.log('=== AuthService Login ===');
+    console.log('Username:', username);
+    console.log('Password:', password);
 
-    if (!user) {
-      throw new UnauthorizedException('用户名或密码错误');
-    }
+    try {
+      // 查找用户
+      const user = await this.userRepository.findOne({
+        where: { username },
+        relations: ['roles'],
+      });
 
-    // 验证密码
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('用户名或密码错误');
-    }
+      console.log('User query result:', user ? 'found' : 'not found');
+      if (user) {
+        console.log('User ID:', user.id);
+        console.log('User status:', user.status);
+        console.log('User roles:', user.roles);
+      }
 
-    // 检查用户状态
-    if (user.status !== 'active') {
-      throw new UnauthorizedException('用户已被禁用');
-    }
+      if (!user) {
+        console.error('User not found');
+        throw new UnauthorizedException('用户名或密码错误');
+      }
 
-    // 生成JWT token
-    const payload = {
-      sub: user.id,
-      username: user.username,
-      roles: user.roles.map((role) => role.roleCode),
-    };
+      // 验证密码
+      console.log('Comparing passwords...');
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      console.log('Password valid:', isPasswordValid);
+      
+      if (!isPasswordValid) {
+        console.error('Invalid password');
+        throw new UnauthorizedException('用户名或密码错误');
+      }
 
-    const accessToken = this.jwtService.sign(payload);
-    const refreshToken = this.jwtService.sign(payload, { expiresIn: '30d' });
+      // 检查用户状态
+      if (user.status !== 'active') {
+        console.error('User not active:', user.status);
+        throw new UnauthorizedException('用户已被禁用');
+      }
 
-    // 更新最后登录时间
-    await this.userRepository.update(user.id, {
-      lastLoginAt: new Date(),
-    });
-
-    return {
-      accessToken,
-      refreshToken,
-      user: {
-        id: user.id,
+      // 生成JWT token
+      const payload = {
+        sub: user.id,
         username: user.username,
-        realName: user.realName,
-        email: user.email,
-        roles: user.roles.map((role) => ({
-          id: role.id,
-          code: role.roleCode,
-          name: role.roleName,
-        })),
-      },
-    };
+        roles: user.roles?.map((role) => role.roleCode) || [],
+      };
+
+      console.log('JWT payload:', payload);
+
+      const accessToken = this.jwtService.sign(payload);
+      const refreshToken = this.jwtService.sign(payload, { expiresIn: '30d' });
+
+      // 更新最后登录时间
+      await this.userRepository.update(user.id, {
+        lastLoginAt: new Date(),
+      });
+
+      const result = {
+        accessToken,
+        refreshToken,
+        user: {
+          id: user.id,
+          username: user.username,
+          realName: user.realName,
+          email: user.email,
+          roles: user.roles?.map((role) => ({
+            id: role.id,
+            code: role.roleCode,
+            name: role.roleName,
+          })) || [],
+        },
+      };
+
+      console.log('Login successful, returning result');
+      return result;
+    } catch (error) {
+      console.error('AuthService login error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -104,18 +131,41 @@ export class AuthService {
   }
 
   /**
-   * 验证用户
+   * Passport LocalStrategy 使用：校验用户名密码
    */
-  async validateUser(userId: string): Promise<User> {
+  async validateLocalUser(username: string, password: string): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { username },
+      relations: ['roles'],
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('用户名或密码错误');
+    }
+
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) {
+      throw new UnauthorizedException('用户名或密码错误');
+    }
+
+    if (user.status !== 'active') {
+      throw new UnauthorizedException('用户已被禁用');
+    }
+
+    return user;
+  }
+
+  /**
+   * JWT使用：按用户ID获取并校验状态
+   */
+  async validateUserById(userId: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       relations: ['roles'],
     });
-
     if (!user || user.status !== 'active') {
       throw new UnauthorizedException('用户未授权');
     }
-
     return user;
   }
 

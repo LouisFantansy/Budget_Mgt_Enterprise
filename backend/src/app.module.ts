@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { Reflector } from '@nestjs/core';
 
 // 配置
 import { databaseConfig } from './config/database.config';
@@ -20,6 +21,7 @@ import { SystemModule } from './modules/system/system.module';
 
 // 守卫
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 
 @Module({
   imports: [
@@ -41,7 +43,8 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
         password: configService.get('database.password'),
         database: configService.get('database.database'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: configService.get('app.nodeEnv') === 'development',
+        // 默认开发环境开启自动同步，便于快速演进；生产环境建议关闭并使用迁移
+        synchronize: !!configService.get('database.synchronize'),
         logging: configService.get('app.nodeEnv') === 'development',
         autoLoadEntities: true,
       }),
@@ -66,10 +69,16 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
     SystemModule,
   ],
   providers: [
-    // 全局JWT认证守卫
+    // 全局JWT认证守卫（配合 @Public() 放行公开路由）
     {
       provide: APP_GUARD,
-      useClass: JwtAuthGuard,
+      useFactory: (reflector: Reflector) => new JwtAuthGuard(reflector),
+      inject: [Reflector],
+    },
+    // 全局角色守卫（配合 @Roles(...) 进行授权）
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
   ],
 })
