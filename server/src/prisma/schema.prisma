@@ -117,6 +117,9 @@ model Budget {
   totalAmount   Decimal      @db.Decimal(18, 2)
   usedAmount    Decimal      @default(0) @db.Decimal(18, 2)
   frozenAmount  Decimal      @default(0) @db.Decimal(18, 2) // 占用金额
+  paymentEntity String?      // 付款主体
+  group         String?      // 组别
+  accountCode   String?      // 会计科目代码
   status        BudgetStatus @default(DRAFT)
   items         BudgetItem[]
   approvals     ApprovalFlow[]
@@ -146,6 +149,9 @@ model BudgetItem {
   totalAmount   Decimal  @db.Decimal(18, 2)
   usedAmount    Decimal  @default(0) @db.Decimal(18, 2)
   frozenAmount  Decimal  @default(0) @db.Decimal(18, 2)
+  paymentEntity String?  // 付款主体
+  group         String?  // 组别
+  accountCode   String?  // 会计科目代码
   monthlyPlan   Json?    // { "1": 100, "2": 200, ... "12": 150 }
   project       String?
   purpose       String?

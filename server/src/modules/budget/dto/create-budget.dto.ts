@@ -28,6 +28,21 @@ export class CreateBudgetDto {
   @IsNumberString()
   totalAmount: string;
 
+  @ApiProperty({ description: '付款主体', required: false })
+  @IsOptional()
+  @IsString()
+  paymentEntity?: string;
+
+  @ApiProperty({ description: '组别', required: false })
+  @IsOptional()
+  @IsString()
+  group?: string;
+
+  @ApiProperty({ description: '会计科目代码', required: false })
+  @IsOptional()
+  @IsString()
+  accountCode?: string;
+
   @ApiProperty({ description: '备注', required: false })
   @IsOptional()
   @IsString()
@@ -68,6 +83,21 @@ export class CreateBudgetItemDto {
   @IsNotEmpty()
   @IsInt()
   quantity: number;
+
+  @ApiProperty({ description: '付款主体', required: false })
+  @IsOptional()
+  @IsString()
+  paymentEntity?: string;
+
+  @ApiProperty({ description: '组别', required: false })
+  @IsOptional()
+  @IsString()
+  group?: string;
+
+  @ApiProperty({ description: '会计科目代码', required: false })
+  @IsOptional()
+  @IsString()
+  accountCode?: string;
 
   @ApiProperty({ description: '月度计划', required: false })
   @IsOptional()

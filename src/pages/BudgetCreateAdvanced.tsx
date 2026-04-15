@@ -183,6 +183,9 @@ const updateItem = (id: string, field: keyof BudgetItemDetail, value: any) => {
         function: item.functionDesc,
         unitPrice: item.unitPrice,
         quantity: item.quantity,
+        paymentEntity: item.paymentEntity || formData.paymentEntity,
+        group: item.group || formData.group,
+        accountCode: item.accountCode || formData.accountCode,
         monthlyPlan: item.monthlyQuantity.reduce((acc, qty, idx) => {
           if (qty > 0) acc[(idx + 1).toString()] = qty
           return acc
@@ -198,6 +201,10 @@ const updateItem = (id: string, field: keyof BudgetItemDetail, value: any) => {
         departmentId: formData.departmentId,
         type: formData.type,
         year: formData.year,
+        totalAmount: totalAmount.toString(),
+        paymentEntity: formData.paymentEntity,
+        group: formData.group,
+        accountCode: formData.accountCode,
         items: budgetItems,
         remark: formData.remark,
       } as any)
@@ -259,6 +266,10 @@ const updateItem = (id: string, field: keyof BudgetItemDetail, value: any) => {
         departmentId: formData.departmentId,
         type: formData.type,
         year: formData.year,
+        totalAmount: totalAmount.toString(),
+        paymentEntity: formData.paymentEntity,
+        group: formData.group,
+        accountCode: formData.accountCode,
         items: budgetItems,
         remark: formData.remark,
       } as any) as any

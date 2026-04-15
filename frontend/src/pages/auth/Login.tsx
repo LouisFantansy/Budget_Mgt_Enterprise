@@ -13,11 +13,14 @@ const Login: React.FC = () => {
   const onFinish = async (values: { username: string; password: string }) => {
     setLoading(true);
     try {
-      await dispatch(login(values)).unwrap();
+      const result = await dispatch(login(values)).unwrap();
+      console.log('Login result:', result);
       message.success('登录成功');
       navigate('/dashboard');
     } catch (error: any) {
-      message.error(error || '登录失败');
+      console.error('Login error:', error);
+      const errorMsg = typeof error === 'string' ? error : (error?.message || '登录失败');
+      message.error(errorMsg);
     } finally {
       setLoading(false);
     }

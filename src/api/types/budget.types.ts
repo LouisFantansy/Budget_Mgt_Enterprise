@@ -34,6 +34,9 @@ export interface CreateBudgetItemRequest {
   function?: string;
   unitPrice: number;
   quantity: number;
+  paymentEntity?: string;
+  group?: string;
+  accountCode?: string;
   monthlyPlan?: Record<string, number>;
   project?: string;
   purpose?: string;
@@ -46,6 +49,10 @@ export interface CreateBudgetRequest {
   departmentId: string;
   type: BudgetType;
   year: number;
+  totalAmount: string;
+  paymentEntity?: string;
+  group?: string;
+  accountCode?: string;
   items: CreateBudgetItemRequest[];
   remark?: string;
 }

@@ -29,14 +29,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    // 使用 CommonJS 格式，避免 ESM 初始化顺序问题
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          antd: ['antd', '@ant-design/icons'],
-          charts: ['echarts', 'echarts-for-react'],
-          redux: ['@reduxjs/toolkit', 'react-redux'],
-        },
+        format: 'iife', // 立即执行函数格式，避免模块初始化问题
       },
     },
   },
