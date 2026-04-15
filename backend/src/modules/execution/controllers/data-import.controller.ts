@@ -79,19 +79,20 @@ export class DataImportController {
 
   @Get('template/:type')
   async downloadTemplate(
-    @Param('type') type: 'PR' | 'PO' | 'SETTLEMENT',
-    @Res() res: Response,
+    @Param('type') type: string,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    const buffer = this.dataImportService.downloadTemplate(type);
+    const upperType = type.toUpperCase() as 'PR' | 'PO' | 'SETTLEMENT';
+    const buffer = this.dataImportService.downloadTemplate(upperType);
 
     const filename = {
       PR: 'PR导入模板.xlsx',
       PO: 'PO导入模板.xlsx',
       SETTLEMENT: '结算导入模板.xlsx',
-    }[type];
+    }[upperType];
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
-    res.send(buffer);
+    return buffer;
   }
 }
