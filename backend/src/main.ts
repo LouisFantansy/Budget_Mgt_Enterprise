@@ -21,7 +21,7 @@ async function bootstrap() {
 
   // 启用CORS
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: true,
     credentials: true,
   });
 
@@ -84,3 +84,4 @@ async function bootstrap() {
 }
 
 bootstrap();
+
