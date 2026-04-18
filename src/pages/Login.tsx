@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { useAuthStore, User } from '../store/authStore'
 import { Shield } from 'lucide-react'
 import api from '../utils/api'
@@ -9,8 +9,13 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login } = useAuthStore()
+  const { login, isAuthenticated } = useAuthStore()
   const navigate = useNavigate()
+
+  // 如果已登录，重定向到首页
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -18,7 +23,7 @@ export function Login() {
     setLoading(true)
   
     try {
-      const response = await api.post('/auth/login', { username, password }) as any
+      const response = await api.post('/auth/login/', { username, password }) as any
       
       // api.ts 拦截器已经返回 response.data，所以这里 response 就是后端返回的数据
       // 后端返回格式: { code: 200, message: 'success', data: { token, user, ... } }

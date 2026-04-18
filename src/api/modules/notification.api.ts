@@ -26,7 +26,7 @@ export const notificationApi = {
    * 获取通知列表
    */
   getList: (params?: NotificationListQuery): Promise<NotificationListApiResponse> => {
-    return apiClient.get('/notifications', { params });
+    return apiClient.get('/notifications/', { params });
   },
 
   /**
@@ -40,13 +40,13 @@ export const notificationApi = {
    * 全部标记为已读
    */
   markAllAsRead: (): Promise<ApiResponse<null>> => {
-    return apiClient.put('/notifications/read-all');
+    return apiClient.put('/notifications/read-all/');
   },
 
   /**
    * 获取未读数量
    */
   getUnreadCount: (): Promise<UnreadCountApiResponse> => {
-    return apiClient.get('/notifications/unread-count');
+    return apiClient.get('/notifications/unread-count/');
   },
 };

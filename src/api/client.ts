@@ -60,10 +60,10 @@ const createAxiosInstance = (): AxiosInstance => {
             break;
           case 401:
             console.error('未授权，请重新登录');
-            // 清除 Token 并跳转到登录页
+            // 清除 Token 但不跳转（让路由守卫处理）
             localStorage.removeItem('token');
             localStorage.removeItem('user');
-            window.location.href = '/login';
+            // 不要在这里跳转，避免循环刷新
             break;
           case 403:
             console.error('拒绝访问');

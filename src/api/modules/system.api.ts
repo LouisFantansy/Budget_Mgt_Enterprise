@@ -81,14 +81,14 @@ export const systemApi = {
    * 获取系统配置
    */
   getConfig: (): Promise<SystemConfigListApiResponse> => {
-    return apiClient.get('/system/config');
+    return apiClient.get('/system/config/');
   },
 
   /**
    * 更新系统配置
    */
   updateConfig: (data: UpdateConfigRequest): Promise<SystemConfigListApiResponse> => {
-    return apiClient.put('/system/config', data);
+    return apiClient.put('/system/config/', data);
   },
 
   // ==================== 用户管理 ====================
@@ -97,14 +97,14 @@ export const systemApi = {
    * 获取用户列表
    */
   getUsers: (params?: UserListQuery): Promise<UserListApiResponse> => {
-    return apiClient.get('/users', { params });
+    return apiClient.get('/users/', { params });
   },
 
   /**
    * 创建用户
    */
   createUser: (data: CreateUserRequest): Promise<UserApiResponse> => {
-    return apiClient.post('/users', data);
+    return apiClient.post('/users/', data);
   },
 
   /**
@@ -134,14 +134,14 @@ export const systemApi = {
    * 获取角色列表
    */
   getRoles: (): Promise<RoleListApiResponse> => {
-    return apiClient.get('/roles');
+    return apiClient.get('/roles/');
   },
 
   /**
    * 创建角色
    */
   createRole: (data: CreateRoleRequest): Promise<RoleApiResponse> => {
-    return apiClient.post('/roles', data);
+    return apiClient.post('/roles/', data);
   },
 
   /**
@@ -162,6 +162,6 @@ export const systemApi = {
    * 获取权限列表
    */
   getPermissions: (): Promise<PermissionListApiResponse> => {
-    return apiClient.get('/permissions');
+    return apiClient.get('/permissions/');
   },
 };

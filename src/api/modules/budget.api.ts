@@ -21,7 +21,7 @@ export const budgetApi = {
    * 获取预算列表
    */
   getList: (params?: BudgetListQuery): Promise<BudgetListApiResponse> => {
-    return apiClient.get('/budgets', { params });
+    return apiClient.get('/budgets/', { params });
   },
 
   /**
@@ -35,7 +35,7 @@ export const budgetApi = {
    * 创建预算
    */
   create: (data: CreateBudgetRequest): Promise<BudgetApiResponse> => {
-    return apiClient.post('/budgets', data);
+    return apiClient.post('/budgets/', data);
   },
 
   /**
@@ -70,7 +70,7 @@ export const budgetApi = {
    * 获取预算汇总
    */
   getSummary: (params?: BudgetSummaryQuery): Promise<BudgetSummaryApiResponse> => {
-    return apiClient.get('/reports/budget-summary', { params });
+    return apiClient.get('/reports/budget-summary/', { params });
   },
 
   /**
@@ -85,6 +85,6 @@ export const budgetApi = {
    */
   export: async (params?: BudgetListQuery, filename?: string): Promise<void> => {
     const name = filename || `预算数据_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    await download('/reports/export/budgets', name);
+    await download('/reports/export/budgets/', name);
   },
 };

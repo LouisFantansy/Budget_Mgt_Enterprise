@@ -22,10 +22,10 @@ api.interceptors.response.use(
   (response) => response.data,
   (error) => {
     if (error.response?.status === 401) {
-      // Token 过期，清除并跳转登录页
+      // Token 过期，清除 token 但不跳转（让路由守卫处理）
       localStorage.removeItem('token')
       localStorage.removeItem('refreshToken')
-      window.location.href = '/login'
+      // 不要在这里跳转，避免循环刷新
     }
     return Promise.reject(error)
   }

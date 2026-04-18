@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { reportApi } from '../api/modules/report.api'
+import { useAuthStore } from '../store/authStore'
 
 // 后端实际返回的数据结构
 interface BackendDashboardData {
@@ -19,8 +20,15 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dashboardData, setDashboardData] = useState<BackendDashboardData | null>(null)
+  const { isAuthenticated } = useAuthStore()
 
   useEffect(() => {
+    // 如果未登录，不调用 API
+    if (!isAuthenticated) {
+      setLoading(false)
+      return
+    }
+
     const fetchDashboard = async () => {
       try {
         setLoading(true)
@@ -42,7 +50,7 @@ export function Dashboard() {
     }
   
     fetchDashboard()
-  }, [])
+  }, [isAuthenticated])
 
   const formatCurrency = (value: number) => {
     if (!value) return '¥0'

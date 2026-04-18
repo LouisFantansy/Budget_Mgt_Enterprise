@@ -1,0 +1,56 @@
+// CSS 变量定义
+:root {
+  // 主色
+  --color-primary: #409EFF;
+  --color-primary-light-3: #79BBFF;
+  --color-primary-light-5: #A0CFFF;
+  --color-primary-light-7: #C6E2FF;
+  --color-primary-light-9: #ECF5FF;
+  --color-primary-dark-2: #337ECC;
+
+  // 功能色
+  --color-success: #67C23A;
+  --color-warning: #E6A23C;
+  --color-danger: #F56C6C;
+  --color-info: #909399;
+
+  // 文字色
+  --color-text-primary: #303133;
+  --color-text-regular: #606266;
+  --color-text-secondary: #909399;
+  --color-text-placeholder: #C0C4CC;
+
+  // 背景色
+  --color-bg-page: #F2F3F5;
+  --color-bg-card: #FFFFFF;
+  --color-bg-sidebar: #304156;
+
+  // 边框
+  --border-color: #DCDFE6;
+  --border-color-light: #E4E7ED;
+
+  // 间距
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  // 圆角
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+
+  // 阴影
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+
+  // 侧边栏
+  --sidebar-width: 220px;
+  --sidebar-collapsed-width: 64px;
+  --header-height: 60px;
+
+  // 过渡
+  --transition-duration: 0.3s;
+}

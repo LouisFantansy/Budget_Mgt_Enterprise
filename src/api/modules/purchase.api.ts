@@ -16,7 +16,7 @@ export const purchaseApi = {
    * 获取采购申请列表
    */
   getList: (params?: PurchaseListQuery): Promise<PurchaseListApiResponse> => {
-    return apiClient.get('/purchases', { params });
+    return apiClient.get('/purchases/', { params });
   },
 
   /**
@@ -30,7 +30,7 @@ export const purchaseApi = {
    * 创建采购申请
    */
   create: (data: CreatePurchaseRequest): Promise<PurchaseApiResponse> => {
-    return apiClient.post('/purchases', data);
+    return apiClient.post('/purchases/', data);
   },
 
   /**

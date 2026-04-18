@@ -50,14 +50,14 @@ export const approvalApi = {
    * 获取待审批列表
    */
   getPendingList: (params?: ApprovalListQuery): Promise<ApprovalListApiResponse> => {
-    return apiClient.get('/approvals', { params });
+    return apiClient.get('/approvals/', { params });
   },
 
   /**
    * 获取我的申请列表
    */
   getMyList: (params?: ApprovalListQuery): Promise<ApprovalListApiResponse> => {
-    return apiClient.get('/approvals/my', { params });
+    return apiClient.get('/approvals/my/', { params });
   },
 
   /**

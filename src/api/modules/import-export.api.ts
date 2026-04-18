@@ -78,7 +78,7 @@ export const importExportApi = {
    * 导入采购订单
    */
   importPurchaseOrders: async (file: File, onProgress?: (percent: number) => void): Promise<ImportResult> => {
-    const result = await upload('/import/purchase-orders', file, onProgress);
+    const result = await upload('/import/purchase-orders/', file, onProgress);
     return result;
   },
 
@@ -86,7 +86,7 @@ export const importExportApi = {
    * 导入结算单
    */
   importSettlements: async (file: File, onProgress?: (percent: number) => void): Promise<ImportResult> => {
-    const result = await upload('/import/settlements', file, onProgress);
+    const result = await upload('/import/settlements/', file, onProgress);
     return result;
   },
 
@@ -94,7 +94,7 @@ export const importExportApi = {
    * 下载导入模板
    */
   downloadTemplate: async (type: 'purchase-orders' | 'settlements' | 'budgets'): Promise<void> => {
-    await download(`/import/templates/${type}`, `${type}_template.xlsx`);
+    await download(`/import/templates/${type}/`, `${type}_template.xlsx`);
   },
 
   // ==================== 数据映射 ====================
@@ -103,14 +103,14 @@ export const importExportApi = {
    * 获取映射列表
    */
   getMappings: (params?: MappingListQuery): Promise<MappingListApiResponse> => {
-    return apiClient.get('/mappings', { params });
+    return apiClient.get('/mappings/', { params });
   },
 
   /**
    * 自动匹配
    */
   autoMatch: (): Promise<ApiResponse<{ matched: number; total: number }>> => {
-    return apiClient.post('/mappings/auto-match');
+    return apiClient.post('/mappings/auto-match/');
   },
 
   /**
@@ -127,7 +127,7 @@ export const importExportApi = {
    */
   exportBudgets: async (params?: Record<string, any>): Promise<void> => {
     const filename = `预算数据_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    await download('/export/budgets', filename);
+    await download('/export/budgets/', filename);
   },
 
   /**
@@ -135,6 +135,6 @@ export const importExportApi = {
    */
   exportAnalysis: async (params?: Record<string, any>): Promise<void> => {
     const filename = `分析数据_${new Date().toISOString().slice(0, 10)}.xlsx`;
-    await download('/export/analysis', filename);
+    await download('/export/analysis/', filename);
   },
 };

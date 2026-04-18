@@ -46,14 +46,14 @@ export const departmentApi = {
    * 获取部门树
    */
   getTree: (): Promise<DepartmentTreeApiResponse> => {
-    return apiClient.get('/departments/tree');
+    return apiClient.get('/departments/tree/');
   },
 
   /**
    * 获取部门列表（平铺）
    */
   getList: (params?: DepartmentListQuery): Promise<DepartmentListApiResponse> => {
-    return apiClient.get('/departments/list', { params });
+    return apiClient.get('/departments/list/', { params });
   },
 
   /**
@@ -67,7 +67,7 @@ export const departmentApi = {
    * 创建部门
    */
   create: (data: CreateDepartmentRequest): Promise<DepartmentApiResponse> => {
-    return apiClient.post('/departments', data);
+    return apiClient.post('/departments/', data);
   },
 
   /**
