@@ -12,19 +12,11 @@ SECRET_KEY = os.environ.get(  # noqa: F405
     'django-insecure-dev-key-change-in-production-2026'
 )
 
-# MySQL 数据库
+# SQLite 数据库（开发环境，无需 Docker）
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('DB_NAME', 'budget_management'),  # noqa: F405
-        'USER': os.environ.get('DB_USER', 'root'),  # noqa: F405
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'root'),  # noqa: F405
-        'HOST': os.environ.get('DB_HOST', 'localhost'),  # noqa: F405
-        'PORT': os.environ.get('DB_PORT', '3306'),  # noqa: F405
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',  # noqa: F405
     }
 }
 

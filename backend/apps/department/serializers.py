@@ -12,7 +12,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
         model = Department
         fields = [
             'id', 'name', 'code', 'level', 'parent', 'parent_name',
-            'manager_id', 'budget_admin_id', 'sort_order', 'status',
+            'manager_id', 'primary_budget_admin_id', 'sort_order', 'status',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -27,7 +27,7 @@ class DepartmentTreeSerializer(serializers.ModelSerializer):
         model = Department
         fields = [
             'id', 'name', 'code', 'level', 'parent',
-            'manager_id', 'budget_admin_id', 'sort_order', 'status', 'children',
+            'manager_id', 'primary_budget_admin_id', 'sort_order', 'status', 'children',
         ]
 
     def get_children(self, obj):
@@ -40,7 +40,7 @@ class DepartmentCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Department
-        fields = ['name', 'code', 'level', 'parent', 'manager_id', 'budget_admin_id', 'sort_order']
+        fields = ['name', 'code', 'level', 'parent', 'manager_id', 'primary_budget_admin_id', 'sort_order']
 
     def validate_code(self, value):
         if Department.objects.filter(code=value).exists():
@@ -69,7 +69,7 @@ class DepartmentUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Department
-        fields = ['name', 'code', 'level', 'parent', 'manager_id', 'budget_admin_id', 'sort_order', 'status']
+        fields = ['name', 'code', 'level', 'parent', 'manager_id', 'primary_budget_admin_id', 'sort_order', 'status']
         extra_kwargs = {
             'name': {'required': False},
             'code': {'required': False},

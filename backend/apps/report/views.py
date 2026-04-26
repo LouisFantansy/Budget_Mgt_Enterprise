@@ -6,354 +6,300 @@ from django.http import HttpResponse
 from rest_framework.viewsets import ViewSet
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 
 from common.permissions import DataIsolationMixin
 from common.utils import success_response, error_response, get_client_ip
 
-from apps.budget.models import Budget, BudgetStatus
-from apps.purchase.models import PurchaseRequest, PurchaseStatus
+from apps.budget.models import Budget, BudgetStatus, BudgetItem, BudgetSource
+from apps.department.models import Department, DepartmentType
 from apps.workflow.models import ApprovalFlow, ApprovalStatus
 from apps.audit.models import AuditLog
 
 
 class ReportViewSet(ViewSet):
-    """报表分析"""
+    """报表分析 / Dashboard 数据接口"""
 
     permission_classes = [IsAuthenticated]
+
+    def _get_budget_qs(self, request, year=None):
+        """根据权限获取预算查询集"""
+        user = request.user
+        queryset = Budget.objects.all()
+        if year:
+            queryset = queryset.filter(year=year)
+
+        if user.is_first_budget_admin or user.is_first_budget_host or user.is_first_dept_head:
+            pass
+        elif user.is_second_budget_admin_primary or user.is_second_budget_admin_secondary or user.is_second_dept_head:
+            if user.department:
+                queryset = queryset.filter(department=user.department)
+        else:
+            queryset = queryset.none()
+        return queryset
 
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
         """
-        GET /api/analysis/dashboard/ - 仪表盘数据
-
-        返回:
-            - budget_summary: 预算汇总（总额、已使用、冻结、可用）
-            - pending_approvals: 待审批数量
-            - monthly_new: 本月新增（预算数、采购数）
-            - usage_rate: 预算使用率
+        GET /api/analysis/dashboard/ - 仪表盘总览数据（智慧城市风格）
         """
-        user = request.user
-        user_roles = set(user.roles.values_list('name', flat=True))
+        year = int(request.query_params.get('year', datetime.now().year))
+        budget_qs = self._get_budget_qs(request, year)
 
-        # 基础查询集（根据权限过滤）
-        budget_qs = Budget.objects.all()
-        purchase_qs = PurchaseRequest.objects.all()
-
-        # 非管理员进行数据隔离
-        if not user_roles & {'admin', 'budget_manager', 'finance'}:
-            if 'dept_head' in user_roles and user.department:
-                dept_ids = [user.department_id] + list(
-                    user.department.children.values_list('id', flat=True)
-                )
-                budget_qs = budget_qs.filter(department_id__in=dept_ids)
-                purchase_qs = purchase_qs.filter(department_id__in=dept_ids)
-            else:
-                budget_qs = budget_qs.filter(department_id=user.department_id)
-                purchase_qs = purchase_qs.filter(department_id=user.department_id)
-
-        # 预算汇总
-        budget_stats = budget_qs.aggregate(
-            total_amount=Sum('total_amount') or Decimal('0'),
-            used_amount=Sum('used_amount') or Decimal('0'),
-            frozen_amount=Sum('frozen_amount') or Decimal('0'),
+        # 按来源统计
+        source_stats = budget_qs.values('source').annotate(
+            total=Sum('total_amount'),
+            count=Count('id')
         )
-        total_amount = budget_stats['total_amount'] or Decimal('0')
-        used_amount = budget_stats['used_amount'] or Decimal('0')
-        frozen_amount = budget_stats['frozen_amount'] or Decimal('0')
-        available_amount = total_amount - used_amount - frozen_amount
+        source_data = {}
+        for s in source_stats:
+            source_data[s['source']] = {
+                'total': str(s['total'] or 0),
+                'count': s['count']
+            }
 
-        # 待审批数量
-        pending_approvals = ApprovalFlow.objects.filter(
-            status=ApprovalStatus.IN_PROGRESS
-        ).count()
+        # 按部门统计（二级部门）
+        dept_stats = budget_qs.filter(
+            department__dept_type=DepartmentType.SECOND
+        ).values('department__name').annotate(
+            total=Sum('total_amount'),
+            count=Count('id')
+        ).order_by('-total')[:10]
 
-        # 本月新增
-        now = datetime.now()
-        current_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        # 按类别统计 OPEX/CAPEX
+        category_stats = budget_qs.values('category').annotate(
+            total=Sum('total_amount'),
+            count=Count('id')
+        )
+        category_data = {}
+        for c in category_stats:
+            category_data[c['category']] = {
+                'total': str(c['total'] or 0),
+                'count': c['count']
+            }
 
-        monthly_new_budgets = budget_qs.filter(
-            created_at__gte=current_month_start
-        ).count()
+        # 待审批统计
+        pending_count = budget_qs.filter(status=BudgetStatus.PENDING).count()
 
-        monthly_new_purchases = purchase_qs.filter(
-            created_at__gte=current_month_start
-        ).count()
+        # 版本统计
+        version_count = budget_qs.exclude(parent_version=None).count()
 
-        # 预算使用率
-        usage_rate = (used_amount / total_amount * 100) if total_amount > 0 else 0
+        # 总预算金额
+        total_budget = budget_qs.aggregate(total=Sum('total_amount'))['total'] or 0
 
-        return success_response({
-            'budget_summary': {
-                'total_amount': str(total_amount),
-                'used_amount': str(used_amount),
-                'frozen_amount': str(frozen_amount),
-                'available_amount': str(available_amount),
+        return Response({
+            'year': year,
+            'overview': {
+                'total_budget': str(total_budget),
+                'budget_count': budget_qs.count(),
+                'pending_count': pending_count,
+                'version_count': version_count,
             },
-            'pending_approvals': pending_approvals,
-            'monthly_new': {
-                'budgets': monthly_new_budgets,
-                'purchases': monthly_new_purchases,
-            },
-            'usage_rate': round(usage_rate, 2),
+            'source_distribution': source_data,
+            'category_distribution': category_data,
+            'department_ranking': [
+                {
+                    'department_name': d['department__name'],
+                    'total': str(d['total'] or 0),
+                    'count': d['count']
+                } for d in dept_stats
+            ],
+        })
+
+    @action(detail=False, methods=['get'])
+    def overview(self, request):
+        """
+        GET /api/analysis/overview/ - 智慧城市风格总览
+        """
+        year = int(request.query_params.get('year', datetime.now().year))
+        budget_qs = self._get_budget_qs(request, year)
+
+        # 统计各状态数量
+        status_counts = budget_qs.values('status').annotate(count=Count('id'))
+        status_data = {s['status']: s['count'] for s in status_counts}
+
+        # 按月度统计新增预算
+        monthly_data = []
+        for month in range(1, 13):
+            count = budget_qs.filter(
+                created_at__year=year,
+                created_at__month=month
+            ).count()
+            monthly_data.append({'month': month, 'count': count})
+
+        # SS Public 占比
+        ss_public_total = budget_qs.filter(source=BudgetSource.SS_PUBLIC).aggregate(
+            total=Sum('total_amount')
+        )['total'] or 0
+
+        return Response({
+            'year': year,
+            'status_distribution': status_data,
+            'monthly_trend': monthly_data,
+            'ss_public_ratio': {
+                'amount': str(ss_public_total),
+                'total': str(budget_qs.aggregate(total=Sum('total_amount'))['total'] or 0),
+            }
         })
 
     @action(detail=False, methods=['get'], url_path='department-ranking')
     def department_ranking(self, request):
         """
         GET /api/analysis/department-ranking/ - 部门排名
-
-        查询参数:
-            - year: 年度（默认当前年）
-            - limit: 返回数量（默认10）
-            - orderBy: 排序字段（total_amount/used_amount，默认total_amount）
         """
         year = int(request.query_params.get('year', datetime.now().year))
         limit = int(request.query_params.get('limit', 10))
-        order_by = request.query_params.get('orderBy', 'total_amount')
+        budget_qs = self._get_budget_qs(request, year)
 
-        if order_by not in ['total_amount', 'used_amount']:
-            order_by = 'total_amount'
-
-        from apps.department.models import Department
-
-        # 按部门聚合预算数据
-        departments = Department.objects.filter(
-            budgets__year=year
-        ).annotate(
-            total_amount=Sum('budgets__total_amount'),
-            used_amount=Sum('budgets__used_amount'),
-            budget_count=Count('budgets')
-        ).order_by(f'-{order_by}')[:limit]
+        dept_stats = budget_qs.filter(
+            department__dept_type=DepartmentType.SECOND
+        ).values('department__id', 'department__name').annotate(
+            total_amount=Sum('total_amount'),
+            budget_count=Count('id')
+        ).order_by('-total_amount')[:limit]
 
         result = []
-        for dept in departments:
-            usage_rate = (
-                (dept.used_amount / dept.total_amount * 100)
-                if dept.total_amount else 0
-            )
+        for d in dept_stats:
             result.append({
-                'department_id': str(dept.id),
-                'department_name': dept.name,
-                'total_amount': str(dept.total_amount or 0),
-                'used_amount': str(dept.used_amount or 0),
-                'budget_count': dept.budget_count,
-                'usage_rate': round(usage_rate, 2),
+                'department_id': str(d['department__id']),
+                'department_name': d['department__name'],
+                'total_amount': str(d['total_amount'] or 0),
+                'budget_count': d['budget_count'],
             })
 
-        return success_response(result)
+        return Response(result)
 
     @action(detail=False, methods=['get'], url_path='monthly-trend')
     def monthly_trend(self, request):
         """
         GET /api/analysis/monthly-trend/ - 月度趋势
-
-        查询参数:
-            - year: 年度（默认当前年）
-            - departmentId: 部门ID（可选）
         """
         year = int(request.query_params.get('year', datetime.now().year))
-        department_id = request.query_params.get('departmentId')
+        budget_qs = self._get_budget_qs(request, year)
 
-        # 基础查询
-        budget_qs = Budget.objects.filter(year=year)
-        if department_id:
-            budget_qs = budget_qs.filter(department_id=department_id)
-
-        # 按月聚合
         monthly_data = []
         for month in range(1, 13):
-            month_start = datetime(year, month, 1)
-            if month == 12:
-                month_end = datetime(year + 1, 1, 1)
-            else:
-                month_end = datetime(year, month + 1, 1)
-
-            month_stats = budget_qs.filter(
-                created_at__gte=month_start,
-                created_at__lt=month_end
-            ).aggregate(
-                new_budgets=Count('id'),
-                total_amount=Sum('total_amount') or Decimal('0'),
-                used_amount=Sum('used_amount') or Decimal('0'),
+            month_qs = budget_qs.filter(created_at__year=year, created_at__month=month)
+            stats = month_qs.aggregate(
+                count=Count('id'),
+                total=Sum('total_amount')
             )
-
             monthly_data.append({
                 'month': month,
                 'month_name': f'{month}月',
-                'new_budgets': month_stats['new_budgets'],
-                'total_amount': str(month_stats['total_amount'] or 0),
-                'used_amount': str(month_stats['used_amount'] or 0),
+                'count': stats['count'] or 0,
+                'total': str(stats['total'] or 0),
             })
 
-        return success_response(monthly_data)
+        return Response(monthly_data)
 
     @action(detail=False, methods=['get'], url_path='category-analysis')
     def category_analysis(self, request):
         """
-        GET /api/analysis/category-analysis/ - 类别分析
-
-        查询参数:
-            - year: 年度（默认当前年）
-            - departmentId: 部门ID（可选）
-            - type: 预算类型（OPEX/CAPEX，可选）
+        GET /api/analysis/category-analysis/ - 类别分析（OPEX/CAPEX）
         """
         year = int(request.query_params.get('year', datetime.now().year))
-        department_id = request.query_params.get('departmentId')
-        budget_type = request.query_params.get('type')
+        budget_qs = self._get_budget_qs(request, year)
 
-        # 基础查询
-        from apps.budget.models import BudgetItem
-        item_qs = BudgetItem.objects.filter(budget__year=year)
-
-        if department_id:
-            item_qs = item_qs.filter(budget__department_id=department_id)
-        if budget_type:
-            item_qs = item_qs.filter(budget__type=budget_type)
-
-        # 按类别聚合
-        category_stats = item_qs.values('category').annotate(
-            total_amount=Sum('total_amount'),
-            used_amount=Sum('used_amount'),
-            item_count=Count('id')
-        ).order_by('-total_amount')
+        category_stats = budget_qs.values('category').annotate(
+            total=Sum('total_amount'),
+            count=Count('id')
+        ).order_by('-total')
 
         result = []
         for stat in category_stats:
-            usage_rate = (
-                (stat['used_amount'] / stat['total_amount'] * 100)
-                if stat['total_amount'] else 0
-            )
             result.append({
                 'category': stat['category'],
-                'total_amount': str(stat['total_amount'] or 0),
-                'used_amount': str(stat['used_amount'] or 0),
-                'item_count': stat['item_count'],
-                'usage_rate': round(usage_rate, 2),
+                'total': str(stat['total'] or 0),
+                'count': stat['count'],
             })
 
-        return success_response(result)
+        return Response(result)
 
     @action(detail=False, methods=['get'], url_path='budget-summary')
     def budget_summary(self, request):
         """
-        GET /api/analysis/budget-summary/ - 预算汇总
-
-        按部门和类型汇总
+        GET /api/analysis/budget-summary/ - 预算汇总（按部门+来源）
         """
         year = int(request.query_params.get('year', datetime.now().year))
+        budget_qs = self._get_budget_qs(request, year)
 
-        from apps.department.models import Department
+        # 按部门和来源汇总
+        summary = budget_qs.values(
+            'department__id', 'department__name', 'source'
+        ).annotate(
+            total=Sum('total_amount'),
+            count=Count('id')
+        ).order_by('department__name', 'source')
 
-        # 按部门和类型汇总
-        departments = Department.objects.filter(
-            budgets__year=year
-        ).prefetch_related('budgets')
+        # 重组数据结构
+        dept_map = {}
+        for item in summary:
+            dept_id = str(item['department__id'])
+            if dept_id not in dept_map:
+                dept_map[dept_id] = {
+                    'department_id': dept_id,
+                    'department_name': item['department__name'],
+                    'sources': {}
+                }
+            dept_map[dept_id]['sources'][item['source']] = {
+                'total': str(item['total'] or 0),
+                'count': item['count']
+            }
 
-        result = []
-        for dept in departments:
-            opex_amount = sum(
-                b.total_amount for b in dept.budgets.all() if b.type == 'OPEX'
-            )
-            capex_amount = sum(
-                b.total_amount for b in dept.budgets.all() if b.type == 'CAPEX'
-            )
-
-            result.append({
-                'department_id': str(dept.id),
-                'department_name': dept.name,
-                'opex_amount': str(opex_amount),
-                'capex_amount': str(capex_amount),
-                'total_amount': str(opex_amount + capex_amount),
-            })
-
-        return success_response(result)
+        return Response(list(dept_map.values()))
 
     @action(detail=False, methods=['get'], url_path='budget-usage')
     def budget_usage(self, request):
         """
-        GET /api/analysis/budget-usage/ - 预算使用追踪列表
-
-        返回所有 APPROVED 预算的使用率排序
+        GET /api/analysis/budget-usage/ - 预算版本追踪列表
         """
-        user = request.user
-        user_roles = set(user.roles.values_list('name', flat=True))
+        year = int(request.query_params.get('year', datetime.now().year))
+        budget_qs = self._get_budget_qs(request, year)
 
-        # 基础查询
-        budget_qs = Budget.objects.filter(status=BudgetStatus.APPROVED)
+        # 按部门获取最新审批通过的版本
+        from apps.department.models import Department
+        departments = Department.objects.filter(dept_type=DepartmentType.SECOND)
 
-        # 非管理员进行数据隔离
-        if not user_roles & {'admin', 'budget_manager', 'finance'}:
-            if 'dept_head' in user_roles and user.department:
-                dept_ids = [user.department_id] + list(
-                    user.department.children.values_list('id', flat=True)
-                )
-                budget_qs = budget_qs.filter(department_id__in=dept_ids)
-            else:
-                budget_qs = budget_qs.filter(department_id=user.department_id)
-
-        # 计算使用率并排序
-        budgets = list(budget_qs)
         result = []
+        for dept in departments:
+            latest = budget_qs.filter(
+                department=dept,
+                status=BudgetStatus.APPROVED
+            ).order_by('-version_major', '-version_minor').first()
 
-        for budget in budgets:
-            total = budget.total_amount or Decimal('0')
-            used = budget.used_amount or Decimal('0')
-            frozen = budget.frozen_amount or Decimal('0')
-            available = total - used - frozen
+            if latest:
+                result.append({
+                    'budget_id': str(latest.id),
+                    'budget_no': latest.budget_no,
+                    'department_name': dept.name,
+                    'year': latest.year,
+                    'version': latest.version_label,
+                    'total_amount': str(latest.total_amount),
+                    'item_count': latest.items.filter(is_deleted=False).count(),
+                    'source': latest.source,
+                    'category': latest.category,
+                })
 
-            usage_rate = (used / total * 100) if total > 0 else 0
-
-            result.append({
-                'budget_id': str(budget.id),
-                'budget_no': budget.budget_no,
-                'name': budget.name,
-                'department_name': budget.department.name if budget.department else '',
-                'year': budget.year,
-                'total_amount': str(total),
-                'used_amount': str(used),
-                'frozen_amount': str(frozen),
-                'available_amount': str(available),
-                'usage_rate': round(usage_rate, 2),
-            })
-
-        # 按使用率降序排序
-        result.sort(key=lambda x: x['usage_rate'], reverse=True)
-
-        return success_response(result)
+        return Response(result)
 
     @action(detail=False, methods=['get'], url_path='export/budgets')
     def export_budgets(self, request):
         """
         GET /api/analysis/export/budgets/ - 导出预算报表 Excel
         """
-        user = request.user
-        user_roles = set(user.roles.values_list('name', flat=True))
+        year = int(request.query_params.get('year', datetime.now().year))
+        budget_qs = self._get_budget_qs(request, year)
 
-        # 基础查询
-        budget_qs = Budget.objects.all()
-
-        # 非管理员进行数据隔离
-        if not user_roles & {'admin', 'budget_manager', 'finance'}:
-            if 'dept_head' in user_roles and user.department:
-                dept_ids = [user.department_id] + list(
-                    user.department.children.values_list('id', flat=True)
-                )
-                budget_qs = budget_qs.filter(department_id__in=dept_ids)
-            else:
-                budget_qs = budget_qs.filter(department_id=user.department_id)
-
-        # 创建 Excel
         wb = Workbook()
         ws = wb.active
         ws.title = "预算报表"
 
-        # 表头
-        headers = ['预算编号', '预算名称', '部门', '类型', '年度', '总额', '已使用', '冻结', '可用', '使用率(%)', '状态']
+        headers = ['预算编号', '部门', '类型', '来源', '年度', '版本', '总额', '条目数', '状态', '编制时间']
         ws.append(headers)
 
-        # 表头样式
         header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
         header_font = Font(bold=True, color='FFFFFF')
         for cell in ws[1]:
@@ -361,34 +307,25 @@ class ReportViewSet(ViewSet):
             cell.font = header_font
             cell.alignment = Alignment(horizontal='center', vertical='center')
 
-        # 数据
         for budget in budget_qs:
-            total = budget.total_amount or Decimal('0')
-            used = budget.used_amount or Decimal('0')
-            frozen = budget.frozen_amount or Decimal('0')
-            available = total - used - frozen
-            usage_rate = (used / total * 100) if total > 0 else 0
-
             ws.append([
-                budget.budget_no,
-                budget.name,
+                budget.budget_no or '-',
                 budget.department.name if budget.department else '',
-                budget.get_type_display(),
+                budget.category,
+                budget.get_source_display(),
                 budget.year,
-                float(total),
-                float(used),
-                float(frozen),
-                float(available),
-                round(usage_rate, 2),
+                budget.version_label,
+                float(budget.total_amount or 0),
+                budget.items.filter(is_deleted=False).count(),
                 budget.get_status_display(),
+                budget.created_at.strftime('%Y-%m-%d %H:%M') if budget.created_at else '',
             ])
 
-        # 调整列宽
-        for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']:
+        for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']:
             ws.column_dimensions[col].width = 15
-        ws.column_dimensions['B'].width = 25
+        ws.column_dimensions['B'].width = 20
 
-        # 记录审计日志
+        user = request.user
         AuditLog.objects.create(
             user_id=str(user.id),
             user_name=user.name or user.username,
@@ -411,72 +348,67 @@ class ReportViewSet(ViewSet):
         GET /api/analysis/export/analysis/ - 导出分析报表 Excel
         """
         user = request.user
+        year = int(request.query_params.get('year', datetime.now().year))
+        budget_qs = self._get_budget_qs(request, year)
 
-        # 创建 Excel
         wb = Workbook()
 
         # 部门排名表
         ws1 = wb.active
         ws1.title = "部门排名"
 
-        from apps.department.models import Department
-        year = datetime.now().year
+        dept_stats = budget_qs.filter(
+            department__dept_type=DepartmentType.SECOND
+        ).values('department__name').annotate(
+            total=Sum('total_amount'),
+            count=Count('id')
+        ).order_by('-total')[:20]
 
-        departments = Department.objects.filter(
-            budgets__year=year
-        ).annotate(
-            total_amount=Sum('budgets__total_amount'),
-            used_amount=Sum('budgets__used_amount'),
-            budget_count=Count('budgets')
-        ).order_by('-total_amount')[:20]
-
-        ws1.append(['部门', '预算总额', '已使用', '预算数', '使用率(%)'])
-        for dept in departments:
-            total = dept.total_amount or Decimal('0')
-            used = dept.used_amount or Decimal('0')
-            usage_rate = (used / total * 100) if total > 0 else 0
+        ws1.append(['部门', '预算总额', '预算数'])
+        for d in dept_stats:
             ws1.append([
-                dept.name,
-                float(total),
-                float(used),
-                dept.budget_count,
-                round(usage_rate, 2),
+                d['department__name'],
+                float(d['total'] or 0),
+                d['count'],
             ])
 
         # 类别分析表
         ws2 = wb.create_sheet("类别分析")
-        from apps.budget.models import BudgetItem
+        category_stats = budget_qs.values('category').annotate(
+            total=Sum('total_amount'),
+            count=Count('id')
+        ).order_by('-total')
 
-        category_stats = BudgetItem.objects.filter(
-            budget__year=year
-        ).values('category').annotate(
-            total_amount=Sum('total_amount'),
-            used_amount=Sum('used_amount'),
-            item_count=Count('id')
-        ).order_by('-total_amount')
-
-        ws2.append(['类别', '总额', '已使用', '项目数', '使用率(%)'])
-        for stat in category_stats:
-            total = stat['total_amount'] or Decimal('0')
-            used = stat['used_amount'] or Decimal('0')
-            usage_rate = (used / total * 100) if total > 0 else 0
+        ws2.append(['类别', '总额', '预算数'])
+        for c in category_stats:
             ws2.append([
-                stat['category'],
-                float(total),
-                float(used),
-                stat['item_count'],
-                round(usage_rate, 2),
+                c['category'],
+                float(c['total'] or 0),
+                c['count'],
             ])
 
-        # 设置样式
-        for ws in [ws1, ws2]:
+        # 来源分析表
+        ws3 = wb.create_sheet("来源分析")
+        source_stats = budget_qs.values('source').annotate(
+            total=Sum('total_amount'),
+            count=Count('id')
+        ).order_by('-total')
+
+        ws3.append(['来源', '总额', '预算数'])
+        for s in source_stats:
+            ws3.append([
+                s['source'],
+                float(s['total'] or 0),
+                s['count'],
+            ])
+
+        for ws in [ws1, ws2, ws3]:
             header_fill = PatternFill(start_color='366092', end_color='366092', fill_type='solid')
             header_font = Font(bold=True, color='FFFFFF')
             for cell in ws[1]:
                 cell.fill = header_fill
                 cell.font = header_font
 
-        # 记录审计日志
         AuditLog.objects.create(
             user_id=str(user.id),
             user_name=user.name or user.username,

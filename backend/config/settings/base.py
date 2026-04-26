@@ -27,6 +27,8 @@ INSTALLED_APPS = [
     'apps.auth_user',
     'apps.department',
     'apps.budget',
+    'apps.budget_template',
+    'apps.special_requirement',
     'apps.purchase',
     'apps.workflow',
     'apps.notification',

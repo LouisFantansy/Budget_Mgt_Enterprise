@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <!-- 统计卡片 - 统一高度和对齐 -->
+    <!-- 统计卡片 -->
     <el-row :gutter="20" class="stats-row">
       <el-col :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
         <el-card shadow="hover" class="stat-card stat-card-budget">
@@ -10,20 +10,20 @@
             </div>
             <div class="stat-info">
               <div class="stat-label">预算总额</div>
-              <div class="stat-value">{{ formatMoney(stats.totalBudget) }}</div>
+              <div class="stat-value">{{ formatMoney(overview.totalBudget) }}</div>
             </div>
           </div>
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
-        <el-card shadow="hover" class="stat-card stat-card-used">
+        <el-card shadow="hover" class="stat-card stat-card-count">
           <div class="stat-content">
             <div class="stat-icon">
-              <el-icon :size="24"><TrendCharts /></el-icon>
+              <el-icon :size="24"><Document /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">已使用金额</div>
-              <div class="stat-value">{{ formatMoney(stats.usedBudget) }}</div>
+              <div class="stat-label">预算数量</div>
+              <div class="stat-value">{{ overview.budgetCount }}</div>
             </div>
           </div>
         </el-card>
@@ -35,28 +35,28 @@
               <el-icon :size="24"><Clock /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">待审批事项</div>
-              <div class="stat-value">{{ stats.pendingApprovals }}</div>
+              <div class="stat-label">待审批</div>
+              <div class="stat-value">{{ overview.pendingCount }}</div>
             </div>
           </div>
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="12" :md="12" :lg="6" :xl="6">
-        <el-card shadow="hover" class="stat-card stat-card-new">
+        <el-card shadow="hover" class="stat-card stat-card-version">
           <div class="stat-content">
             <div class="stat-icon">
-              <el-icon :size="24"><DocumentAdd /></el-icon>
+              <el-icon :size="24"><Collection /></el-icon>
             </div>
             <div class="stat-info">
-              <div class="stat-label">本月新增</div>
-              <div class="stat-value">{{ stats.monthlyNew }}</div>
+              <div class="stat-label">版本数量</div>
+              <div class="stat-value">{{ overview.versionCount }}</div>
             </div>
           </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <!-- 快捷操作 + 预算使用率 -->
+    <!-- 快捷操作 + 待审批 -->
     <el-row :gutter="20" class="main-content-row">
       <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="8">
         <el-card class="quick-actions-card" shadow="never">
@@ -72,14 +72,15 @@
               <span class="action-text">创建预算</span>
               <el-icon class="action-arrow"><ArrowRight /></el-icon>
             </div>
-            <div class="action-item action-item-success" @click="router.push('/purchase/create')">
-              <div class="action-icon"><el-icon :size="20"><Plus /></el-icon></div>
-              <span class="action-text">创建采购申请</span>
-              <el-icon class="action-arrow"><ArrowRight /></el-icon>
-            </div>
             <div class="action-item action-item-warning" @click="router.push('/approval')">
               <div class="action-icon"><el-icon :size="20"><Checked /></el-icon></div>
               <span class="action-text">审批中心</span>
+              <el-tag v-if="overview.pendingCount > 0" type="danger" size="small">{{ overview.pendingCount }}</el-tag>
+              <el-icon v-else class="action-arrow"><ArrowRight /></el-icon>
+            </div>
+            <div class="action-item action-item-success" @click="router.push('/special-requirements')">
+              <div class="action-icon"><el-icon :size="20"><DocumentAdd /></el-icon></div>
+              <span class="action-text">专题需求</span>
               <el-icon class="action-arrow"><ArrowRight /></el-icon>
             </div>
             <div class="action-item action-item-info" @click="router.push('/analysis')">
@@ -90,34 +91,15 @@
           </div>
         </el-card>
 
-        <!-- 预算使用率 -->
-        <el-card class="usage-card" shadow="never">
+        <!-- 来源分布 -->
+        <el-card class="source-card" shadow="never">
           <template #header>
             <div class="card-header">
-              <el-icon><PieChart /></el-icon>
-              <span>预算使用率</span>
+              <el-icon><PieChartIcon /></el-icon>
+              <span>预算来源分布</span>
             </div>
           </template>
-          <div class="usage-content">
-            <div class="usage-percentage">{{ budgetUsagePercent }}%</div>
-            <el-progress
-              :percentage="budgetUsagePercent"
-              :color="budgetUsageColor"
-              :stroke-width="12"
-              :show-text="false"
-              class="usage-progress"
-            />
-            <div class="usage-stats">
-              <div class="usage-stat">
-                <span class="stat-label-small">已使用</span>
-                <span class="stat-value-small">{{ formatMoney(stats.usedBudget) }}</span>
-              </div>
-              <div class="usage-stat">
-                <span class="stat-label-small">总预算</span>
-                <span class="stat-value-small">{{ formatMoney(stats.totalBudget) }}</span>
-              </div>
-            </div>
-          </div>
+          <v-chart :option="sourceOption" autoresize style="height: 220px" />
         </el-card>
       </el-col>
 
@@ -132,14 +114,14 @@
             </div>
           </template>
           <el-table :data="pendingApprovals" border size="small" v-if="pendingApprovals.length > 0">
-            <el-table-column label="类型" width="80">
+            <el-table-column label="类型" width="90">
               <template #default="{ row }">
                 <el-tag :type="(row.targetType === 'BUDGET' ? 'primary' : 'success') as any" size="small">
-                  {{ row.targetType === 'BUDGET' ? '预算' : '采购' }}
+                  {{ row.targetType === 'BUDGET' ? '预算' : '需求' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="targetCode" label="编号" min-width="130" />
+            <el-table-column prop="targetNo" label="编号" min-width="130" />
             <el-table-column prop="targetName" label="名称" min-width="160" show-overflow-tooltip />
             <el-table-column label="金额" min-width="120" align="right">
               <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
@@ -161,41 +143,28 @@
       </el-col>
     </el-row>
 
-    <!-- 预算预警 + 月度趋势 -->
+    <!-- OPEX/CAPEX + 部门排名 -->
     <el-row :gutter="20" class="bottom-row">
       <el-col :xs="24" :sm="24" :md="10" :lg="10" :xl="10">
-        <el-card class="warning-card" shadow="never">
+        <el-card class="category-card" shadow="never">
           <template #header>
             <div class="card-header">
-              <el-icon><Warning /></el-icon>
-              <span>预算使用预警</span>
-              <el-tag type="warning" size="small" class="header-tag">使用率 > 80%</el-tag>
+              <el-icon><PieChartIcon /></el-icon>
+              <span>OPEX / CAPEX 分布</span>
             </div>
           </template>
-          <el-table :data="budgetWarnings" border size="small" v-if="budgetWarnings.length > 0">
-            <el-table-column prop="code" label="预算编号" min-width="130" />
-            <el-table-column prop="name" label="名称" min-width="140" show-overflow-tooltip />
-            <el-table-column label="使用率" width="100">
-              <template #default="{ row }">
-                <span style="color: var(--el-color-danger); font-weight: 600">{{ row.usagePercent }}%</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="剩余" min-width="120" align="right">
-              <template #default="{ row }">{{ formatMoney(row.remainingAmount) }}</template>
-            </el-table-column>
-          </el-table>
-          <el-empty v-else description="暂无预警" :image-size="60" />
+          <v-chart :option="categoryOption" autoresize style="height: 280px" />
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="24" :md="14" :lg="14" :xl="14">
-        <el-card class="trend-card" shadow="never">
+        <el-card class="ranking-card" shadow="never">
           <template #header>
             <div class="card-header">
               <el-icon><TrendCharts /></el-icon>
-              <span>月度趋势</span>
+              <span>部门预算排名 (Top 10)</span>
             </div>
           </template>
-          <v-chart :option="miniTrendOption" autoresize style="height: 280px" />
+          <v-chart :option="deptRankingOption" autoresize style="height: 280px" />
         </el-card>
       </el-col>
     </el-row>
@@ -207,59 +176,108 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  Wallet, TrendCharts, Clock, DocumentAdd,
-  Plus, Checked, DataAnalysis, Operation, PieChart, Bell, Warning, ArrowRight
+  Wallet, Document, Clock, Collection,
+  Plus, Checked, DataAnalysis, Operation, PieChart as PieChartIcon, Bell, ArrowRight, DocumentAdd
 } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart } from 'echarts/charts'
-import { TitleComponent, TooltipComponent, GridComponent } from 'echarts/components'
+import { LineChart, PieChart, BarChart } from 'echarts/charts'
+import { TitleComponent, TooltipComponent, LegendComponent, GridComponent } from 'echarts/components'
 import { reportApi } from '@/api/modules/report'
 import { approvalApi } from '@/api/modules/approval'
-import { budgetApi } from '@/api/modules/budget'
 import { formatMoney, formatDateTimeShort } from '@/utils/format'
 
-use([CanvasRenderer, LineChart, TitleComponent, TooltipComponent, GridComponent])
+use([CanvasRenderer, LineChart, PieChart, BarChart, TitleComponent, TooltipComponent, LegendComponent, GridComponent])
 
 const router = useRouter()
 
 // ===================== 状态 =====================
-const stats = reactive({
+const overview = reactive({
   totalBudget: 0,
-  usedBudget: 0,
-  pendingApprovals: 0,
-  monthlyNew: 0,
+  budgetCount: 0,
+  pendingCount: 0,
+  versionCount: 0,
 })
+
+const sourceDistribution = ref<{ source: string; amount: number }[]>([])
+const categoryDistribution = ref<{ category: string; amount: number }[]>([])
+const deptRanking = ref<{ name: string; amount: number }[]>([])
 
 const pendingApprovals = ref<any[]>([])
-const budgetWarnings = ref<any[]>([])
-const monthlyData = ref<any>({})
 
-const budgetUsagePercent = computed(() => {
-  if (stats.totalBudget === 0) return 0
-  return Math.round((stats.usedBudget / stats.totalBudget) * 100)
-})
-
-const budgetUsageColor = computed(() => {
-  const p = budgetUsagePercent.value
-  if (p >= 90) return '#F56C6C'
-  if (p >= 80) return '#E6A23C'
-  if (p >= 60) return '#409EFF'
-  return '#67C23A'
-})
-
-const miniTrendOption = computed(() => {
-  const months = monthlyData.value.months || ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
+// 来源分布饼图
+const sourceOption = computed(() => {
+  const sourceMap: Record<string, string> = {
+    SELF_COMPILED: 'SS自编',
+    GROUP_ALLOCATION: '集团分摊',
+    SS_PUBLIC: 'SS Public',
+  }
+  const data = sourceDistribution.value.map(s => ({
+    name: sourceMap[s.source] || s.source,
+    value: s.amount,
+  }))
   return {
-    tooltip: { trigger: 'axis' },
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { orient: 'vertical', left: 'left', top: 'center' },
+    series: [{
+      type: 'pie',
+      radius: ['45%', '75%'],
+      center: ['65%', '50%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
+      label: { show: false },
+      emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
+      data: data.length > 0 ? data : [{ name: '暂无数据', value: 0 }],
+    }],
+  }
+})
+
+// OPEX/CAPEX 分布
+const categoryOption = computed(() => {
+  const catMap: Record<string, string> = {
+    OPEX: '运营支出 (OPEX)',
+    CAPEX: '资本支出 (CAPEX)',
+  }
+  const data = categoryDistribution.value.map(c => ({
+    name: catMap[c.category] || c.category,
+    value: c.amount,
+  }))
+  return {
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { orient: 'vertical', left: 'left', top: 'center' },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      center: ['60%', '50%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+      label: { show: true, formatter: '{b}\n{d}%' },
+      data: data.length > 0 ? data : [{ name: '暂无数据', value: 0 }],
+    }],
+  }
+})
+
+// 部门排名图
+const deptRankingOption = computed(() => {
+  const names = deptRanking.value.map(d => d.name)
+  const values = deptRanking.value.map(d => d.amount)
+  return {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', data: months },
-    yAxis: { type: 'value' },
-    series: [
-      { name: '预算', type: 'line', data: monthlyData.value.budgets || [], smooth: true, areaStyle: { opacity: 0.1 }, lineStyle: { width: 2 } },
-      { name: '使用', type: 'line', data: monthlyData.value.usages || [], smooth: true, areaStyle: { opacity: 0.1 }, lineStyle: { width: 2 } },
-    ],
+    xAxis: { type: 'value' },
+    yAxis: { type: 'category', data: names.reverse(), axisLabel: { width: 100, overflow: 'truncate' } },
+    series: [{
+      type: 'bar',
+      data: values.reverse(),
+      itemStyle: {
+        color: (params: any) => {
+          const colors = ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#00bcd4', '#ff9800', '#9c27b0']
+          return colors[params.dataIndex % colors.length]
+        },
+        borderRadius: [0, 4, 4, 0],
+      },
+    }],
   }
 })
 
@@ -268,12 +286,16 @@ async function fetchDashboardData() {
   try {
     const res = await reportApi.getDashboard()
     const d = res.data
-    stats.totalBudget = d.totalBudget || 0
-    stats.usedBudget = d.usedBudget || 0
-    stats.pendingApprovals = d.pendingApprovals || 0
-    stats.monthlyNew = d.monthlyNew || 0
-  } catch {
-    // 静默处理
+    overview.totalBudget = d.overview?.totalBudget || 0
+    overview.budgetCount = d.overview?.budgetCount || 0
+    overview.pendingCount = d.overview?.pendingCount || 0
+    overview.versionCount = d.overview?.versionCount || 0
+
+    sourceDistribution.value = d.sourceDistribution || []
+    categoryDistribution.value = d.categoryDistribution || []
+    deptRanking.value = d.departmentRanking || []
+  } catch (error: any) {
+    ElMessage.error(error?.message || '获取仪表盘数据失败')
   }
 }
 
@@ -286,39 +308,10 @@ async function fetchPendingApprovals() {
   }
 }
 
-async function fetchBudgetWarnings() {
-  try {
-    const res = await budgetApi.getList({ pageSize: 50, status: 'APPROVED' })
-    const items = res.data.items || []
-    budgetWarnings.value = items
-      .filter((b: any) => {
-        const percent = b.totalAmount > 0 ? (b.usedAmount / b.totalAmount) * 100 : 0
-        return percent > 80
-      })
-      .map((b: any) => ({
-        ...b,
-        usagePercent: b.totalAmount > 0 ? Math.round((b.usedAmount / b.totalAmount) * 100) : 0,
-      }))
-  } catch {
-    // 静默处理
-  }
-}
-
-async function fetchMonthlyTrend() {
-  try {
-    const res = await reportApi.getMonthlyTrend()
-    monthlyData.value = res.data
-  } catch {
-    // 静默处理
-  }
-}
-
 // ===================== 生命周期 =====================
 onMounted(() => {
   fetchDashboardData()
   fetchPendingApprovals()
-  fetchBudgetWarnings()
-  fetchMonthlyTrend()
 })
 </script>
 
@@ -327,7 +320,7 @@ onMounted(() => {
 $apple-blue: #007AFF;
 $apple-green: #34C759;
 $apple-orange: #FF9500;
-$apple-red: #FF3B30;
+$apple-purple: #AF52DE;
 $apple-gray: #8E8E93;
 $apple-bg: #F5F5F7;
 $apple-card-bg: #FFFFFF;
@@ -340,12 +333,10 @@ $apple-text-secondary: #6E6E73;
   min-height: 100%;
 }
 
-// 统计卡片行
 .stats-row {
   margin-bottom: 20px;
 }
 
-// 统计卡片 - 统一高度和苹果风格
 .stat-card {
   height: 120px;
   border-radius: 16px;
@@ -383,11 +374,10 @@ $apple-text-secondary: #6E6E73;
     font-size: 24px;
   }
 
-  // 苹果风格渐变配色
   &.stat-card-budget .stat-icon { background: linear-gradient(135deg, $apple-blue, #5AC8FA); }
-  &.stat-card-used .stat-icon { background: linear-gradient(135deg, $apple-green, #30D158); }
+  &.stat-card-count .stat-icon { background: linear-gradient(135deg, $apple-green, #30D158); }
   &.stat-card-pending .stat-icon { background: linear-gradient(135deg, $apple-orange, #FFCC00); }
-  &.stat-card-new .stat-icon { background: linear-gradient(135deg, $apple-gray, #AEAEB2); }
+  &.stat-card-version .stat-icon { background: linear-gradient(135deg, $apple-purple, #BF5AF2); }
 
   .stat-info {
     flex: 1;
@@ -411,12 +401,10 @@ $apple-text-secondary: #6E6E73;
   }
 }
 
-// 主要内容行
 .main-content-row {
   margin-bottom: 20px;
 }
 
-// 卡片头部样式
 .card-header {
   display: flex;
   align-items: center;
@@ -437,7 +425,6 @@ $apple-text-secondary: #6E6E73;
   }
 }
 
-// 快捷操作卡片
 .quick-actions-card {
   border-radius: 16px;
   border: none;
@@ -455,7 +442,6 @@ $apple-text-secondary: #6E6E73;
   }
 }
 
-// 快捷操作按钮
 .quick-actions {
   display: flex;
   flex-direction: column;
@@ -512,7 +498,6 @@ $apple-text-secondary: #6E6E73;
     flex-shrink: 0;
   }
 
-  // 不同颜色的左边框
   &.action-item-primary {
     border-left: 4px solid $apple-blue;
     .action-icon { color: $apple-blue; }
@@ -531,8 +516,7 @@ $apple-text-secondary: #6E6E73;
   }
 }
 
-// 使用率卡片
-.usage-card {
+.source-card {
   border-radius: 16px;
   border: none;
   background: $apple-card-bg;
@@ -544,63 +528,10 @@ $apple-text-secondary: #6E6E73;
   }
 
   :deep(.el-card__body) {
-    padding: 24px 20px;
+    padding: 12px;
   }
 }
 
-.usage-content {
-  text-align: center;
-}
-
-.usage-percentage {
-  font-size: 48px;
-  font-weight: 700;
-  color: $apple-text;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-  letter-spacing: -0.03em;
-  margin-bottom: 16px;
-}
-
-.usage-progress {
-  margin-bottom: 20px;
-
-  :deep(.el-progress-bar__outer) {
-    border-radius: 6px;
-    background: rgba(0, 0, 0, 0.04);
-  }
-
-  :deep(.el-progress-bar__inner) {
-    border-radius: 6px;
-  }
-}
-
-.usage-stats {
-  display: flex;
-  justify-content: space-around;
-  padding-top: 16px;
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
-}
-
-.usage-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.stat-label-small {
-  font-size: 12px;
-  color: $apple-text-secondary;
-  font-weight: 500;
-}
-
-.stat-value-small {
-  font-size: 14px;
-  color: $apple-text;
-  font-weight: 600;
-}
-
-// 待审批卡片
 .pending-card {
   border-radius: 16px;
   border: none;
@@ -618,7 +549,6 @@ $apple-text-secondary: #6E6E73;
   }
 }
 
-// 底部行
 .bottom-row {
   .el-card {
     border-radius: 16px;
@@ -637,21 +567,6 @@ $apple-text-secondary: #6E6E73;
   }
 }
 
-// 警告卡片
-.warning-card {
-  :deep(.el-card__header .el-icon) {
-    color: $apple-orange;
-  }
-}
-
-// 趋势卡片
-trend-card {
-  :deep(.el-card__header .el-icon) {
-    color: $apple-blue;
-  }
-}
-
-// 响应式调整
 @media (max-width: 768px) {
   .page-container {
     padding: 16px;
@@ -669,10 +584,6 @@ trend-card {
     .stat-info .stat-value {
       font-size: 20px;
     }
-  }
-
-  .usage-percentage {
-    font-size: 36px;
   }
 }
 </style>

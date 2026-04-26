@@ -1,6 +1,7 @@
 import traceback
 from datetime import datetime
 
+from django.conf import settings
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
@@ -46,6 +47,9 @@ def custom_exception_handler(exc, context):
         }
     else:
         # DRF 无法识别的异常（如 Django 异常）
+        if settings.DEBUG:
+            import traceback
+            traceback.print_exc()
         response = Response(
             data={
                 'code': status.HTTP_500_INTERNAL_SERVER_ERROR,

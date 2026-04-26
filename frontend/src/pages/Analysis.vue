@@ -13,10 +13,16 @@
           placeholder="选择年度"
           style="width: 140px"
           value-format="YYYY"
-          @change="fetchDashboardData"
+          @change="fetchData"
         />
-        <el-select v-model="filterDepartmentId" placeholder="选择部门" clearable style="width: 200px" @change="fetchDashboardData">
-          <el-option v-for="dept in departmentList" :key="dept.id" :label="dept.name" :value="dept.id" />
+        <el-select v-model="filterSource" placeholder="来源筛选" clearable style="width: 160px" @change="fetchData">
+          <el-option label="SS自编" value="SELF_COMPILED" />
+          <el-option label="集团分摊" value="GROUP_ALLOCATION" />
+          <el-option label="SS Public" value="SS_PUBLIC" />
+        </el-select>
+        <el-select v-model="filterCategory" placeholder="类型筛选" clearable style="width: 140px" @change="fetchData">
+          <el-option label="OPEX" value="OPEX" />
+          <el-option label="CAPEX" value="CAPEX" />
         </el-select>
       </div>
       <div class="toolbar-right">
@@ -31,25 +37,25 @@
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-label">预算总额</div>
-          <div class="stat-value">{{ formatMoney(dashboardData.totalBudget) }}</div>
+          <div class="stat-value">{{ formatMoney(overview.totalBudget) }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
-        <el-card shadow="hover" class="stat-card stat-used">
-          <div class="stat-label">已使用</div>
-          <div class="stat-value">{{ formatMoney(dashboardData.usedBudget) }}</div>
+        <el-card shadow="hover" class="stat-card stat-count">
+          <div class="stat-label">预算数量</div>
+          <div class="stat-value">{{ overview.budgetCount }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
-        <el-card shadow="hover" class="stat-card stat-frozen">
-          <div class="stat-label">冻结中</div>
-          <div class="stat-value">{{ formatMoney(dashboardData.frozenBudget) }}</div>
+        <el-card shadow="hover" class="stat-card stat-pending">
+          <div class="stat-label">待审批</div>
+          <div class="stat-value">{{ overview.pendingCount }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
-        <el-card shadow="hover" class="stat-card stat-available">
-          <div class="stat-label">可用金额</div>
-          <div class="stat-value">{{ formatMoney(dashboardData.availableBudget) }}</div>
+        <el-card shadow="hover" class="stat-card stat-version">
+          <div class="stat-label">版本数量</div>
+          <div class="stat-value">{{ overview.versionCount }}</div>
         </el-card>
       </el-col>
     </el-row>
@@ -57,26 +63,26 @@
     <!-- 图表区域 -->
     <el-row :gutter="16" style="margin-top: 16px">
       <el-col :span="12">
-        <el-card header="月度趋势" shadow="never">
-          <v-chart :option="monthlyTrendOption" autoresize style="height: 350px" />
+        <el-card header="来源分布" shadow="never">
+          <v-chart :option="sourceOption" autoresize style="height: 350px" />
         </el-card>
       </el-col>
       <el-col :span="12">
-        <el-card header="部门排名 (Top 10)" shadow="never">
-          <v-chart :option="deptRankingOption" autoresize style="height: 350px" />
+        <el-card header="OPEX / CAPEX 分布" shadow="never">
+          <v-chart :option="categoryOption" autoresize style="height: 350px" />
         </el-card>
       </el-col>
     </el-row>
 
     <el-row :gutter="16" style="margin-top: 16px">
       <el-col :span="12">
-        <el-card header="类别分布" shadow="never">
-          <v-chart :option="categoryOption" autoresize style="height: 350px" />
+        <el-card header="部门排名 (Top 10)" shadow="never">
+          <v-chart :option="deptRankingOption" autoresize style="height: 350px" />
         </el-card>
       </el-col>
       <el-col :span="12">
-        <el-card header="预算类型对比" shadow="never">
-          <v-chart :option="typeCompareOption" autoresize style="height: 350px" />
+        <el-card header="月度趋势" shadow="never">
+          <v-chart :option="monthlyTrendOption" autoresize style="height: 350px" />
         </el-card>
       </el-col>
     </el-row>
@@ -91,14 +97,8 @@ import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, BarChart, PieChart } from 'echarts/charts'
-import {
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent,
-  GridComponent,
-} from 'echarts/components'
+import { TitleComponent, TooltipComponent, LegendComponent, GridComponent } from 'echarts/components'
 import { reportApi } from '@/api/modules/report'
-import { getDepartmentTree } from '@/api/modules/department'
 import { formatMoney } from '@/utils/format'
 import dayjs from 'dayjs'
 
@@ -106,42 +106,75 @@ use([CanvasRenderer, LineChart, BarChart, PieChart, TitleComponent, TooltipCompo
 
 // ===================== 状态 =====================
 const filterYear = ref(dayjs().format('YYYY'))
-const filterDepartmentId = ref<number | null>(null)
-const departmentList = ref<any[]>([])
+const filterSource = ref<string>('')
+const filterCategory = ref<string>('')
 const loading = ref(false)
 
-const dashboardData = reactive({
+const overview = reactive({
   totalBudget: 0,
-  usedBudget: 0,
-  frozenBudget: 0,
-  availableBudget: 0,
+  budgetCount: 0,
+  pendingCount: 0,
+  versionCount: 0,
 })
 
-// 图表数据
-const monthlyTrendData = ref<any>({})
-const deptRankingData = ref<any[]>([])
-const categoryData = ref<any[]>([])
+const sourceDistribution = ref<{ source: string; amount: number }[]>([])
+const categoryDistribution = ref<{ category: string; amount: number }[]>([])
+const deptRanking = ref<{ name: string; amount: number }[]>([])
+const monthlyTrend = ref<{ months: string[]; budgets: number[] }>({ months: [], budgets: [] })
 
-// 月度趋势图配置
-const monthlyTrendOption = computed(() => {
-  const months = monthlyTrendData.value.months || ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
+// 来源分布
+const sourceOption = computed(() => {
+  const sourceMap: Record<string, string> = {
+    SELF_COMPILED: 'SS自编',
+    GROUP_ALLOCATION: '集团分摊',
+    SS_PUBLIC: 'SS Public',
+  }
+  const data = sourceDistribution.value.map(s => ({
+    name: sourceMap[s.source] || s.source,
+    value: s.amount,
+  }))
   return {
-    tooltip: { trigger: 'axis' },
-    legend: { data: ['预算', '使用'] },
-    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', data: months },
-    yAxis: { type: 'value' },
-    series: [
-      { name: '预算', type: 'line', data: monthlyTrendData.value.budgets || [], smooth: true, areaStyle: { opacity: 0.1 } },
-      { name: '使用', type: 'line', data: monthlyTrendData.value.usages || [], smooth: true, areaStyle: { opacity: 0.1 } },
-    ],
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { orient: 'vertical', left: 'left' },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+      label: { show: true, formatter: '{b}\n{d}%' },
+      data: data.length > 0 ? data : [{ name: '暂无数据', value: 0 }],
+    }],
   }
 })
 
-// 部门排名图配置
+// 类别分布
+const categoryOption = computed(() => {
+  const catMap: Record<string, string> = {
+    OPEX: '运营支出',
+    CAPEX: '资本支出',
+  }
+  const data = categoryDistribution.value.map(c => ({
+    name: catMap[c.category] || c.category,
+    value: c.amount,
+  }))
+  return {
+    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    legend: { top: '5%', left: 'center' },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
+      label: { show: true, formatter: '{b}\n{d}%' },
+      data: data.length > 0 ? data : [{ name: '暂无数据', value: 0 }],
+    }],
+  }
+})
+
+// 部门排名
 const deptRankingOption = computed(() => {
-  const names = deptRankingData.value.map((d: any) => d.name)
-  const values = deptRankingData.value.map((d: any) => d.amount)
+  const names = deptRanking.value.map(d => d.name)
+  const values = deptRanking.value.map(d => d.amount)
   return {
     tooltip: { trigger: 'axis' },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
@@ -160,64 +193,48 @@ const deptRankingOption = computed(() => {
   }
 })
 
-// 类别分布饼图
-const categoryOption = computed(() => ({
-  tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-  legend: { orient: 'vertical', left: 'left' },
+// 月度趋势
+const monthlyTrendOption = computed(() => ({
+  tooltip: { trigger: 'axis' },
+  legend: { data: ['预算总额'] },
+  grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+  xAxis: { type: 'category', data: monthlyTrend.value.months },
+  yAxis: { type: 'value' },
   series: [{
-    type: 'pie',
-    radius: ['40%', '70%'],
-    avoidLabelOverlap: false,
-    itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
-    label: { show: false },
-    emphasis: { label: { show: true, fontSize: 16, fontWeight: 'bold' } },
-    data: categoryData.value.length > 0
-      ? categoryData.value.map((c: any) => ({ name: c.name, value: c.amount }))
-      : [{ name: '暂无数据', value: 0 }],
-  }],
-}))
-
-// 预算类型对比
-const typeCompareOption = computed(() => ({
-  tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-  legend: { top: '5%', left: 'center' },
-  series: [{
-    type: 'pie',
-    radius: ['40%', '70%'],
-    avoidLabelOverlap: false,
-    itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
-    label: { show: true, formatter: '{b}\n{d}%' },
-    data: [
-      { name: 'OPEX (运营支出)', value: dashboardData.usedBudget * 0.6 || 1, itemStyle: { color: '#409EFF' } },
-      { name: 'CAPEX (资本支出)', value: dashboardData.usedBudget * 0.4 || 1, itemStyle: { color: '#67C23A' } },
-    ],
+    name: '预算总额',
+    type: 'line',
+    data: monthlyTrend.value.budgets,
+    smooth: true,
+    areaStyle: { opacity: 0.1 },
   }],
 }))
 
 // ===================== 方法 =====================
-async function fetchDashboardData() {
+async function fetchData() {
   loading.value = true
   try {
     const params: Record<string, any> = {}
     if (filterYear.value) params.year = filterYear.value
-    if (filterDepartmentId.value) params.departmentId = filterDepartmentId.value
+    if (filterSource.value) params.source = filterSource.value
+    if (filterCategory.value) params.category = filterCategory.value
 
-    const [dashboardRes, trendRes, deptRes, categoryRes] = await Promise.all([
-      reportApi.getDashboard(),
+    const [dashboardRes, trendRes, deptRes] = await Promise.all([
+      reportApi.getDashboard().catch(() => ({ data: {} })),
       reportApi.getMonthlyTrend(params).catch(() => ({ data: {} })),
       reportApi.getDepartmentRanking(params).catch(() => ({ data: { items: [] } })),
-      reportApi.getCategoryAnalysis(params).catch(() => ({ data: { items: [] } })),
     ])
 
     const d = dashboardRes.data
-    dashboardData.totalBudget = d.totalBudget || 0
-    dashboardData.usedBudget = d.usedBudget || 0
-    dashboardData.frozenBudget = d.frozenBudget || 0
-    dashboardData.availableBudget = d.availableBudget || 0
+    overview.totalBudget = d.overview?.totalBudget || 0
+    overview.budgetCount = d.overview?.budgetCount || 0
+    overview.pendingCount = d.overview?.pendingCount || 0
+    overview.versionCount = d.overview?.versionCount || 0
 
-    monthlyTrendData.value = trendRes.data
-    deptRankingData.value = deptRes.data.items || deptRes.data || []
-    categoryData.value = categoryRes.data.items || categoryRes.data || []
+    sourceDistribution.value = d.sourceDistribution || []
+    categoryDistribution.value = d.categoryDistribution || []
+    deptRanking.value = d.departmentRanking || []
+
+    monthlyTrend.value = trendRes.data || { months: [], budgets: [] }
   } catch (error: any) {
     ElMessage.error(error?.message || '获取报表数据失败')
   } finally {
@@ -225,31 +242,12 @@ async function fetchDashboardData() {
   }
 }
 
-async function fetchDepartments() {
-  try {
-    const res = await getDepartmentTree()
-    departmentList.value = flattenDepartments(res.data)
-  } catch {
-    // 静默处理
-  }
-}
-
-function flattenDepartments(depts: any[]): any[] {
-  const result: any[] = []
-  for (const dept of depts) {
-    result.push(dept)
-    if (dept.children && dept.children.length > 0) {
-      result.push(...flattenDepartments(dept.children))
-    }
-  }
-  return result
-}
-
 async function handleExport() {
   try {
     const params: Record<string, any> = {}
     if (filterYear.value) params.year = filterYear.value
-    if (filterDepartmentId.value) params.departmentId = filterDepartmentId.value
+    if (filterSource.value) params.source = filterSource.value
+    if (filterCategory.value) params.category = filterCategory.value
     await reportApi.exportAnalysis(params)
     ElMessage.success('报表导出成功')
   } catch (error: any) {
@@ -259,8 +257,7 @@ async function handleExport() {
 
 // ===================== 生命周期 =====================
 onMounted(() => {
-  fetchDepartments()
-  fetchDashboardData()
+  fetchData()
 })
 </script>
 
@@ -307,16 +304,16 @@ onMounted(() => {
     color: var(--el-color-primary);
   }
 
-  &.stat-used .stat-value {
+  &.stat-count .stat-value {
     color: var(--el-color-success);
   }
 
-  &.stat-frozen .stat-value {
+  &.stat-pending .stat-value {
     color: var(--el-color-warning);
   }
 
-  &.stat-available .stat-value {
-    color: var(--el-color-primary);
+  &.stat-version .stat-value {
+    color: var(--el-color-info);
   }
 }
 </style>

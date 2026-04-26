@@ -30,7 +30,7 @@
             </div>
             <div class="avatar-info">
               <h4 class="user-name">{{ authStore.user?.realName || authStore.user?.username || '用户' }}</h4>
-              <p class="user-role">{{ authStore.user?.roles?.[0]?.name || '普通用户' }}</p>
+              <p class="user-role">{{ getRoleDisplay() }}</p>
             </div>
           </div>
 
@@ -99,34 +99,29 @@ import { useAuthStore } from '@/stores/auth'
 import * as authApi from '@/api/modules/auth'
 import { put } from '@/api/client'
 import { Camera } from '@element-plus/icons-vue'
+import { ROLE_LABELS } from '@/utils/constants'
 
 const authStore = useAuthStore()
 
-// 默认头像
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
 
-// 上传请求头
 const uploadHeaders = computed(() => ({
   Authorization: `Bearer ${localStorage.getItem('token') || ''}`
 }))
 
-// 头像上传成功
 const handleAvatarSuccess: UploadProps['onSuccess'] = (response) => {
   if (response.code === 200) {
     ElMessage.success('头像上传成功')
-    // 刷新用户信息
     authStore.fetchUserInfo()
   } else {
     ElMessage.error(response.message || '上传失败')
   }
 }
 
-// 头像上传失败
 const handleAvatarError: UploadProps['onError'] = () => {
   ElMessage.error('头像上传失败，请重试')
 }
 
-// 上传前检查
 const beforeAvatarUpload: UploadProps['beforeUpload'] = (rawFile) => {
   const isImage = rawFile.type.startsWith('image/')
   const isLt2M = rawFile.size / 1024 / 1024 < 2
@@ -145,7 +140,6 @@ const beforeAvatarUpload: UploadProps['beforeUpload'] = (rawFile) => {
 // ===================== 状态 =====================
 const activeTab = ref('profile')
 
-// 个人信息表单
 const profileFormRef = ref<FormInstance>()
 const profileLoading = ref(false)
 const profileForm = reactive({
@@ -162,7 +156,6 @@ const profileRules: FormRules = {
   ],
 }
 
-// 修改密码表单
 const passwordFormRef = ref<FormInstance>()
 const passwordLoading = ref(false)
 const passwordForm = reactive({
@@ -191,7 +184,6 @@ const passwordRules: FormRules = {
   ],
 }
 
-// 密码强度
 const passwordStrength = computed(() => {
   const pwd = passwordForm.newPassword
   if (!pwd) return { percent: 0, level: '', text: '' }
@@ -211,7 +203,12 @@ const passwordStrength = computed(() => {
 
 // ===================== 方法 =====================
 
-// 初始化表单
+function getRoleDisplay(): string {
+  const roles = authStore.user?.roles || []
+  if (roles.length === 0) return '普通用户'
+  return roles.map(r => (ROLE_LABELS as Record<string, string>)[r.code] || r.name).join(', ')
+}
+
 function initProfileForm() {
   if (authStore.user) {
     profileForm.realName = authStore.user.realName || ''
@@ -220,7 +217,6 @@ function initProfileForm() {
   }
 }
 
-// 更新个人信息
 async function handleUpdateProfile() {
   const valid = await profileFormRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -232,7 +228,6 @@ async function handleUpdateProfile() {
       email: profileForm.email,
       phone: profileForm.phone,
     })
-    // 刷新用户信息
     await authStore.fetchUserInfo()
     ElMessage.success('个人信息更新成功')
   } catch (error: any) {
@@ -242,7 +237,6 @@ async function handleUpdateProfile() {
   }
 }
 
-// 修改密码
 async function handleChangePassword() {
   const valid = await passwordFormRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -254,11 +248,9 @@ async function handleChangePassword() {
       newPassword: passwordForm.newPassword,
     })
     ElMessage.success('密码修改成功，请重新登录')
-    // 清空表单
     passwordForm.oldPassword = ''
     passwordForm.newPassword = ''
     passwordForm.confirmPassword = ''
-    // 退出登录
     await authStore.logout()
   } catch (error: any) {
     ElMessage.error(error?.message || '密码修改失败')
@@ -274,7 +266,6 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-// 苹果商务风格配色
 $apple-blue: #007AFF;
 $apple-bg: #F5F5F7;
 $apple-card-bg: #FFFFFF;
@@ -317,7 +308,6 @@ $apple-text-secondary: #6E6E73;
   padding: 32px;
 }
 
-// 头像区域
 .avatar-section {
   display: flex;
   align-items: center;

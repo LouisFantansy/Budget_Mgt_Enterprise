@@ -3,12 +3,14 @@ import type { BudgetStatus } from '@/types'
 
 // ===================== 角色标签 =====================
 export const ROLE_LABELS: Record<UserRole, string> = {
-  [UserRole.SUPER_ADMIN]: '超级管理员',
-  [UserRole.SYSTEM_ADMIN]: '系统管理员',
-  [UserRole.BUDGET_ADMIN]: '预算管理员',
-  [UserRole.DEPT_ADMIN]: '部门管理员',
-  [UserRole.BUDGET_USER]: '预算用户',
-  [UserRole.VIEWER]: '查看者',
+  [UserRole.FIRST_BUDGET_ADMIN]: '一级部门预算管理员',
+  [UserRole.FIRST_BUDGET_HOST]: '一级部门预算管理员主办',
+  [UserRole.FIRST_DEPT_HEAD]: '一级部门负责人',
+  [UserRole.SECOND_BUDGET_ADMIN_PRIMARY]: '主二级部门预算管理员',
+  [UserRole.SECOND_BUDGET_ADMIN_SECONDARY]: '次二级部门预算管理员',
+  [UserRole.SECOND_DEPT_HEAD]: '二级部门负责人',
+  [UserRole.ENGINEER]: '一线工程师',
+  [UserRole.ADMIN]: '系统管理员',
 }
 
 // ===================== 预算状态 =====================

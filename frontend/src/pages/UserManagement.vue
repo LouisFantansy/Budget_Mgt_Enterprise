@@ -51,10 +51,10 @@
           {{ row.department?.name || '-' }}
         </template>
       </el-table-column>
-      <el-table-column label="角色" min-width="180">
+      <el-table-column label="角色" min-width="200">
         <template #default="{ row }">
           <el-tag v-for="role in row.roles" :key="role.id" size="small" style="margin-right: 4px; margin-bottom: 4px">
-            {{ role.name }}
+            {{ (ROLE_LABELS as Record<string, string>)[role.code] || role.name }}
           </el-tag>
         </template>
       </el-table-column>
@@ -74,10 +74,10 @@
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click="handleEdit(row)">编辑</el-button>
           <el-button type="primary" link size="small" @click="handleResetPassword(row)">重置密码</el-button>
-          <el-button 
-            :type="row.status === 'ACTIVE' ? 'danger' : 'success'" 
-            link 
-            size="small" 
+          <el-button
+            :type="row.status === 'ACTIVE' ? 'danger' : 'success'"
+            link
+            size="small"
             @click="handleToggleStatus(row)"
           >
             {{ row.status === 'ACTIVE' ? '禁用' : '启用' }}
@@ -134,7 +134,12 @@
         </el-form-item>
         <el-form-item label="角色" prop="roleIds">
           <el-select v-model="formData.roleIds" multiple placeholder="选择角色" style="width: 100%">
-            <el-option v-for="role in roleList" :key="role.id" :label="role.name" :value="role.id" />
+            <el-option
+              v-for="role in roleList"
+              :key="role.id"
+              :label="(ROLE_LABELS as Record<string, string>)[role.code] || role.name"
+              :value="role.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="状态" prop="status">
@@ -159,21 +164,17 @@ import { Search, Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import * as userApi from '@/api/modules/user'
 import * as departmentApi from '@/api/modules/department'
+import { get } from '@/api/client'
+import type { ApiResponse } from '@/api/types'
 import type { User, Department, Role } from '@/types'
 import { formatDateTime } from '@/utils/format'
+import { ROLE_LABELS } from '@/utils/constants'
 
 // ===================== 状态 =====================
 const loading = ref(false)
 const userList = ref<User[]>([])
 const departmentTree = ref<Department[]>([])
-const roleList = ref<Role[]>([
-  { id: 1, name: '超级管理员', code: 'SUPER_ADMIN', permissions: [], createdAt: '' },
-  { id: 2, name: '系统管理员', code: 'SYSTEM_ADMIN', permissions: [], createdAt: '' },
-  { id: 3, name: '预算管理员', code: 'BUDGET_ADMIN', permissions: [], createdAt: '' },
-  { id: 4, name: '部门管理员', code: 'DEPT_ADMIN', permissions: [], createdAt: '' },
-  { id: 5, name: '预算用户', code: 'BUDGET_USER', permissions: [], createdAt: '' },
-  { id: 6, name: '查看者', code: 'VIEWER', permissions: [], createdAt: '' },
-])
+const roleList = ref<Role[]>([])
 
 // 筛选条件
 const searchQuery = ref('')
@@ -223,7 +224,6 @@ const formRules: FormRules = {
 
 // ===================== 方法 =====================
 
-// 获取用户列表
 async function fetchUserList() {
   loading.value = true
   try {
@@ -231,16 +231,10 @@ async function fetchUserList() {
       page: pagination.page,
       pageSize: pagination.pageSize,
     }
-    if (searchQuery.value) {
-      params.search = searchQuery.value
-    }
-    if (filterDepartmentId.value) {
-      params.departmentId = filterDepartmentId.value
-    }
-    if (filterStatus.value) {
-      params.status = filterStatus.value
-    }
-    
+    if (searchQuery.value) params.search = searchQuery.value
+    if (filterDepartmentId.value) params.departmentId = filterDepartmentId.value
+    if (filterStatus.value) params.status = filterStatus.value
+
     const res = await userApi.getUserList(params)
     userList.value = res.data.items
     pagination.total = res.data.total
@@ -251,7 +245,6 @@ async function fetchUserList() {
   }
 }
 
-// 获取部门树
 async function fetchDepartmentTree() {
   try {
     const res = await departmentApi.getDepartmentTree()
@@ -261,7 +254,15 @@ async function fetchDepartmentTree() {
   }
 }
 
-// 状态标签
+async function fetchRoleList() {
+  try {
+    const res = await get<Role[]>('/roles/')
+    roleList.value = res.data || []
+  } catch {
+    // 静默处理，使用默认角色列表
+  }
+}
+
 function getStatusType(status: string) {
   const typeMap: Record<string, string> = {
     ACTIVE: 'success',
@@ -280,13 +281,11 @@ function getStatusLabel(status: string) {
   return labelMap[status] || status
 }
 
-// 搜索
 function handleSearch() {
   pagination.page = 1
   fetchUserList()
 }
 
-// 重置
 function handleReset() {
   searchQuery.value = ''
   filterDepartmentId.value = null
@@ -295,7 +294,6 @@ function handleReset() {
   fetchUserList()
 }
 
-// 分页
 function handleSizeChange(size: number) {
   pagination.pageSize = size
   fetchUserList()
@@ -306,14 +304,12 @@ function handlePageChange(page: number) {
   fetchUserList()
 }
 
-// 新增
 function handleAdd() {
   isEdit.value = false
   resetForm()
   dialogVisible.value = true
 }
 
-// 编辑
 function handleEdit(row: User) {
   isEdit.value = true
   resetForm()
@@ -328,7 +324,6 @@ function handleEdit(row: User) {
   dialogVisible.value = true
 }
 
-// 重置表单
 function resetForm() {
   formData.id = 0
   formData.username = ''
@@ -342,7 +337,6 @@ function resetForm() {
   formRef.value?.resetFields()
 }
 
-// 提交
 async function handleSubmit() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -357,7 +351,6 @@ async function handleSubmit() {
         departmentId: formData.departmentId,
         status: formData.status,
       })
-      // 更新角色
       if (formData.roleIds.length > 0) {
         await userApi.assignRoles(formData.id, formData.roleIds)
       }
@@ -384,7 +377,6 @@ async function handleSubmit() {
   }
 }
 
-// 重置密码
 async function handleResetPassword(row: User) {
   try {
     await ElMessageBox.confirm(
@@ -392,7 +384,7 @@ async function handleResetPassword(row: User) {
       '确认重置密码',
       { type: 'warning' }
     )
-    const newPassword = '123456' // 默认密码
+    const newPassword = '123456'
     await userApi.resetPassword(row.id, newPassword)
     ElMessage.success(`密码已重置为: ${newPassword}`)
   } catch (error: any) {
@@ -402,7 +394,6 @@ async function handleResetPassword(row: User) {
   }
 }
 
-// 切换状态
 async function handleToggleStatus(row: User) {
   const newStatus = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
   const actionText = newStatus === 'ACTIVE' ? '启用' : '禁用'
@@ -426,6 +417,7 @@ async function handleToggleStatus(row: User) {
 onMounted(() => {
   fetchUserList()
   fetchDepartmentTree()
+  fetchRoleList()
 })
 </script>
 

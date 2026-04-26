@@ -12,11 +12,11 @@
           <el-table-column label="目标类型" width="100">
             <template #default="{ row }">
               <el-tag :type="(row.targetType === 'BUDGET' ? 'primary' : 'success') as any" size="small">
-                {{ row.targetType === 'BUDGET' ? '预算' : '采购' }}
+                {{ row.targetType === 'BUDGET' ? '预算' : '需求' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="targetCode" label="编号" min-width="140" />
+          <el-table-column prop="targetNo" label="编号" min-width="140" />
           <el-table-column prop="targetName" label="名称/用途" min-width="180" show-overflow-tooltip />
           <el-table-column label="金额" min-width="130" align="right">
             <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
@@ -51,11 +51,11 @@
           <el-table-column label="目标类型" width="100">
             <template #default="{ row }">
               <el-tag :type="(row.targetType === 'BUDGET' ? 'primary' : 'success') as any" size="small">
-                {{ row.targetType === 'BUDGET' ? '预算' : '采购' }}
+                {{ row.targetType === 'BUDGET' ? '预算' : '需求' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="targetCode" label="编号" min-width="140" />
+          <el-table-column prop="targetNo" label="编号" min-width="140" />
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
               <el-tag :type="getApprovalStatusType(row.status) as any" size="small">
@@ -86,14 +86,57 @@
           />
         </div>
       </el-tab-pane>
+
+      <!-- 已审批 -->
+      <el-tab-pane label="已审批" name="approved">
+        <el-table v-loading="approvedLoading" :data="approvedList" border stripe>
+          <el-table-column label="目标类型" width="100">
+            <template #default="{ row }">
+              <el-tag :type="(row.targetType === 'BUDGET' ? 'primary' : 'success') as any" size="small">
+                {{ row.targetType === 'BUDGET' ? '预算' : '需求' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="targetNo" label="编号" min-width="140" />
+          <el-table-column prop="targetName" label="名称" min-width="180" show-overflow-tooltip />
+          <el-table-column label="金额" min-width="130" align="right">
+            <template #default="{ row }">{{ formatMoney(row.amount) }}</template>
+          </el-table-column>
+          <el-table-column label="审批结果" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 'APPROVED' ? 'success' : 'danger'" size="small">
+                {{ row.status === 'APPROVED' ? '通过' : '驳回' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="审批时间" min-width="160">
+            <template #default="{ row }">{{ formatDateTime(row.approvedAt) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="80" fixed="right">
+            <template #default="{ row }">
+              <el-button type="primary" link size="small" @click="handleViewDetail(row)">详情</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="pagination-container">
+          <el-pagination
+            v-model:current-page="approvedPagination.page"
+            v-model:page-size="approvedPagination.pageSize"
+            :page-sizes="[10, 20, 50]"
+            :total="approvedPagination.total"
+            layout="total, sizes, prev, pager, next"
+            @size-change="fetchApprovedList"
+            @current-change="fetchApprovedList"
+          />
+        </div>
+      </el-tab-pane>
     </el-tabs>
 
     <!-- 审批弹窗 -->
     <el-dialog v-model="approvalDialogVisible" :title="approvalAction === 'approve' ? '审批通过' : '驳回审批'" width="600px" destroy-on-close>
-      <!-- 审批对象详情 -->
       <el-descriptions :column="2" border size="small" style="margin-bottom: 16px">
-        <el-descriptions-item label="类型">{{ currentApproval?.targetType === 'BUDGET' ? '预算' : '采购' }}</el-descriptions-item>
-        <el-descriptions-item label="编号">{{ currentApproval?.targetCode }}</el-descriptions-item>
+        <el-descriptions-item label="类型">{{ currentApproval?.targetType === 'BUDGET' ? '预算' : '需求' }}</el-descriptions-item>
+        <el-descriptions-item label="编号">{{ currentApproval?.targetNo }}</el-descriptions-item>
         <el-descriptions-item label="名称" :span="2">{{ currentApproval?.targetName }}</el-descriptions-item>
         <el-descriptions-item label="金额">{{ currentApproval ? formatMoney(currentApproval.amount) : '-' }}</el-descriptions-item>
         <el-descriptions-item label="当前步骤">{{ currentApproval?.currentStepName }}</el-descriptions-item>
@@ -115,8 +158,8 @@
     <!-- 审批详情弹窗 -->
     <el-dialog v-model="detailDialogVisible" title="审批详情" width="600px" destroy-on-close>
       <el-descriptions :column="2" border size="small" style="margin-bottom: 16px">
-        <el-descriptions-item label="类型">{{ detailData?.targetType === 'BUDGET' ? '预算' : '采购' }}</el-descriptions-item>
-        <el-descriptions-item label="编号">{{ detailData?.targetCode }}</el-descriptions-item>
+        <el-descriptions-item label="类型">{{ detailData?.targetType === 'BUDGET' ? '预算' : '需求' }}</el-descriptions-item>
+        <el-descriptions-item label="编号">{{ detailData?.targetNo }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getApprovalStatusType(detailData?.status) as any" size="small">
             {{ getApprovalStatusLabel(detailData?.status) }}
@@ -167,6 +210,11 @@ const pendingPagination = reactive({ page: 1, pageSize: 20, total: 0 })
 const initiatedLoading = ref(false)
 const initiatedList = ref<any[]>([])
 const initiatedPagination = reactive({ page: 1, pageSize: 20, total: 0 })
+
+// 已审批
+const approvedLoading = ref(false)
+const approvedList = ref<any[]>([])
+const approvedPagination = reactive({ page: 1, pageSize: 20, total: 0 })
 
 // 审批弹窗
 const approvalDialogVisible = ref(false)
@@ -219,9 +267,27 @@ async function fetchInitiatedList() {
   }
 }
 
+async function fetchApprovedList() {
+  approvedLoading.value = true
+  try {
+    const res = await approvalApi.getList({
+      page: approvedPagination.page,
+      pageSize: approvedPagination.pageSize,
+      status: 'APPROVED',
+    })
+    approvedList.value = res.data.items || []
+    approvedPagination.total = res.data.total || 0
+  } catch (error: any) {
+    ElMessage.error(error?.message || '获取已审批列表失败')
+  } finally {
+    approvedLoading.value = false
+  }
+}
+
 function handleTabChange(tab: string) {
   if (tab === 'pending') fetchPendingList()
-  else fetchInitiatedList()
+  else if (tab === 'initiated') fetchInitiatedList()
+  else if (tab === 'approved') fetchApprovedList()
 }
 
 function getApprovalStatusType(status?: string) {

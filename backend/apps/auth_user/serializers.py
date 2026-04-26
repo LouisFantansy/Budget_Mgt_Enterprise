@@ -64,6 +64,7 @@ class DepartmentBriefSerializer(serializers.Serializer):
 class RoleBriefSerializer(serializers.Serializer):
     """角色简要信息"""
     id = serializers.UUIDField()
+    code = serializers.CharField()
     name = serializers.CharField()
     display_name = serializers.CharField()
 

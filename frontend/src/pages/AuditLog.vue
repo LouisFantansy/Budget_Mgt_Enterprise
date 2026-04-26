@@ -10,7 +10,6 @@
       />
       <el-select v-model="filters.module" placeholder="模块" clearable style="width: 140px">
         <el-option label="预算管理" value="budget" />
-        <el-option label="采购管理" value="purchase" />
         <el-option label="审批管理" value="approval" />
         <el-option label="报表分析" value="report" />
         <el-option label="系统管理" value="system" />
@@ -25,7 +24,6 @@
         <el-option label="审批" value="approve" />
         <el-option label="驳回" value="reject" />
         <el-option label="导出" value="export" />
-        <el-option label="导入" value="import" />
       </el-select>
       <el-date-picker
         v-model="filters.dateRange"
@@ -184,7 +182,6 @@ async function fetchAuditLogs() {
 function getModuleLabel(resource: string) {
   const map: Record<string, string> = {
     budget: '预算管理',
-    purchase: '采购管理',
     approval: '审批管理',
     report: '报表分析',
     system: '系统管理',
@@ -274,7 +271,7 @@ async function handleExport() {
       params.startDate = filters.dateRange[0]
       params.endDate = filters.dateRange[1]
     }
-    
+
     const filename = `审计日志_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`
     await download('/audit-logs/export', filename, { params })
     ElMessage.success('导出成功')

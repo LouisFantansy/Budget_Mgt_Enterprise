@@ -44,12 +44,26 @@ export enum NotificationType {
 }
 
 export enum UserRole {
-  SUPER_ADMIN = 'SUPER_ADMIN',
-  SYSTEM_ADMIN = 'SYSTEM_ADMIN',
-  BUDGET_ADMIN = 'BUDGET_ADMIN',
-  DEPT_ADMIN = 'DEPT_ADMIN',
-  BUDGET_USER = 'BUDGET_USER',
-  VIEWER = 'VIEWER',
+  FIRST_BUDGET_ADMIN = 'FIRST_BUDGET_ADMIN',
+  FIRST_BUDGET_HOST = 'FIRST_BUDGET_HOST',
+  FIRST_DEPT_HEAD = 'FIRST_DEPT_HEAD',
+  SECOND_BUDGET_ADMIN_PRIMARY = 'SECOND_BUDGET_ADMIN_PRIMARY',
+  SECOND_BUDGET_ADMIN_SECONDARY = 'SECOND_BUDGET_ADMIN_SECONDARY',
+  SECOND_DEPT_HEAD = 'SECOND_DEPT_HEAD',
+  ENGINEER = 'ENGINEER',
+  ADMIN = 'ADMIN',
+}
+
+export enum BudgetSource {
+  SELF_COMPILED = 'SELF_COMPILED',
+  GROUP_ALLOCATION = 'GROUP_ALLOCATION',
+  SS_PUBLIC = 'SS_PUBLIC',
+}
+
+export enum DepartmentType {
+  FIRST = 'FIRST',
+  SECOND = 'SECOND',
+  SS_PUBLIC = 'SS_PUBLIC',
 }
 
 // ===================== 实体类型 =====================
@@ -92,6 +106,7 @@ export interface Department {
   id: number
   name: string
   code: string
+  type?: 'FIRST' | 'SECOND' | 'SS_PUBLIC'
   parentId?: number
   parent?: Department
   children?: Department[]
@@ -105,68 +120,123 @@ export interface Department {
 }
 
 export interface Budget {
-  id: number
-  name: string
-  code: string
-  type?: 'OPEX' | 'CAPEX'
+  id: string
+  budgetNo?: string
   year: number
-  departmentId?: number
+  category: 'OPEX' | 'CAPEX'
+  source: BudgetSource
+  departmentId?: string
   department?: Department
+  templateId?: string
+  template?: BudgetTemplate
+  versionMajor: number
+  versionMinor: number
+  versionLabel: string
+  parentVersionId?: string
+  branchedFromId?: string
+  isBranch: boolean
+  branchName?: string
+  status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED'
   totalAmount: number
-  usedAmount: number
-  frozenAmount?: number
-  remainingAmount: number
-  status: BudgetStatus
-  items: BudgetItem[]
-  createdBy: number
-  creator?: User
-  approvedBy?: number
-  approver?: User
-  paymentEntity?: string
-  group?: string
-  accountCode?: string
+  totalQuantity: number
   remark?: string
+  items: BudgetItem[]
+  createdBy?: string
+  createdByName?: string
+  approvedBy?: string
+  approvedByName?: string
+  submittedBy?: string
+  submittedByName?: string
+  approvedAt?: string
+  submittedAt?: string
   createdAt: string
   updatedAt: string
 }
 
 export interface BudgetItem {
-  id: number
-  budgetId: number
-  name?: string
-  category: string
-  subCategory?: string
-  specification?: string
-  function?: string
-  unitPrice: number
-  quantity: number
-  totalPrice?: number
-  plannedAmount: number
-  usedAmount: number
-  remainingAmount: number
-  description?: string
-  purpose?: string
-  supplier?: string
-  deliveryDate?: string
-  paymentEntity?: string
-  group?: string
-  accountCode?: string
-  monthlyPlan?: Record<string, number>
-  project?: string
-  sortOrder?: number
+  id: string
+  budgetId: string
+  templateId?: string
+  itemNo: number
+  fieldData: Record<string, any>
+  computedFields: Record<string, any>
+  internalComment?: string
+  isDeleted: boolean
+  createdBy?: string
+  createdByName?: string
+  createdAt: string
+  updatedAt: string
 }
 
-export interface BudgetAdjustment {
-  id: number
-  budgetId: number
-  budget?: Budget
-  type: 'INCREASE' | 'DECREASE' | 'TRANSFER'
-  amount: number
-  reason: string
-  status: ApprovalStatus
-  createdBy: number
-  creator?: User
+export interface BudgetTemplate {
+  id: string
+  name: string
+  templateType: string
+  description?: string
+  isActive: boolean
+  creatorId?: string
+  creatorName?: string
+  fields: TemplateField[]
   createdAt: string
+  updatedAt: string
+}
+
+export interface TemplateField {
+  id: string
+  fieldCode: string
+  fieldName: string
+  fieldType: 'TEXT' | 'NUMBER' | 'SELECT' | 'DATE' | 'BOOLEAN'
+  isRequired: boolean
+  isFormula: boolean
+  formula?: string
+  defaultValue?: string
+  sortOrder: number
+  options?: TemplateFieldOption[]
+}
+
+export interface TemplateFieldOption {
+  id: string
+  optionValue: string
+  optionLabel: string
+  sortOrder: number
+}
+
+export interface BudgetTask {
+  id: string
+  name: string
+  year: number
+  budgetType: 'OPEX' | 'CAPEX'
+  status: 'DRAFT' | 'PUBLISHED' | 'CLOSED'
+  deadline?: string
+  description?: string
+  createdAt: string
+}
+
+export interface SpecialRequirement {
+  id: string
+  templateId: string
+  templateName?: string
+  departmentId: string
+  departmentName?: string
+  year: number
+  formData: Record<string, any>
+  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'
+  filledBy?: string
+  filledByName?: string
+  linkedBudgetId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PurchaseHistory {
+  id: string
+  description: string
+  specification?: string
+  historicalPrice: number
+  suggestedPrice: number
+  supplier?: string
+  purchaseDate?: string
+  usageCount: number
 }
 
 export interface PurchaseRequest {

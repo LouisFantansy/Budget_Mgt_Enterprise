@@ -15,26 +15,36 @@ export const useAuthStore = defineStore('auth', () => {
   const userPermissions = computed(() => user.value?.permissions || [])
 
   /**
-   * 检查是否拥有指定权限
-   * @param module 模块名 (如 'budget', 'purchase')
-   * @param action 操作 (如 'view', 'create', 'edit', 'delete')
+   * 检查是否拥有指定角色
    */
-  function hasPermission(module: string, action: string): boolean {
+  function hasRole(roleCode: string): boolean {
     if (!user.value) return false
-    // 超级管理员拥有所有权限
-    if (user.value.roles?.some((r) => r.code === 'SUPER_ADMIN')) return true
-    const permissionCode = `${module}:${action}`
-    return user.value.permissions?.includes(permissionCode) ?? false
+    return user.value.roles?.some((r) => r.code === roleCode) ?? false
   }
 
-  /**
-   * 检查是否拥有指定角色
-   * @param roleName 角色代码 (如 'SUPER_ADMIN', 'BUDGET_ADMIN')
-   */
-  function hasRole(roleName: string): boolean {
-    if (!user.value) return false
-    return user.value.roles?.some((r) => r.code === roleName) ?? false
-  }
+  /** 一级部门预算管理员 */
+  const isFirstBudgetAdmin = computed(() => hasRole('FIRST_BUDGET_ADMIN'))
+  /** 一级部门预算管理员主办 */
+  const isFirstBudgetHost = computed(() => hasRole('FIRST_BUDGET_HOST'))
+  /** 一级部门负责人 */
+  const isFirstDeptHead = computed(() => hasRole('FIRST_DEPT_HEAD'))
+  /** 主二级部门预算管理员 */
+  const isSecondBudgetAdminPrimary = computed(() => hasRole('SECOND_BUDGET_ADMIN_PRIMARY'))
+  /** 次二级部门预算管理员 */
+  const isSecondBudgetAdminSecondary = computed(() => hasRole('SECOND_BUDGET_ADMIN_SECONDARY'))
+  /** 二级部门负责人 */
+  const isSecondDeptHead = computed(() => hasRole('SECOND_DEPT_HEAD'))
+  /** 工程师 */
+  const isEngineer = computed(() => hasRole('ENGINEER'))
+  /** 系统管理员 */
+  const isAdmin = computed(() => hasRole('ADMIN'))
+
+  /** 是否为一级别部门角色（可看全部数据） */
+  const isFirstLevel = computed(() => isFirstBudgetAdmin.value || isFirstBudgetHost.value || isFirstDeptHead.value)
+  /** 是否为二级部门角色（只看本部门） */
+  const isSecondLevel = computed(() => isSecondBudgetAdminPrimary.value || isSecondBudgetAdminSecondary.value || isSecondDeptHead.value)
+  /** 是否为预算管理员（可编辑预算） */
+  const isBudgetAdmin = computed(() => isFirstBudgetAdmin.value || isSecondBudgetAdminPrimary.value || isSecondBudgetAdminSecondary.value)
 
   // ===================== Actions =====================
   async function login(username: string, password: string) {
@@ -106,8 +116,18 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     userRoles,
     userPermissions,
-    hasPermission,
     hasRole,
+    isFirstBudgetAdmin,
+    isFirstBudgetHost,
+    isFirstDeptHead,
+    isSecondBudgetAdminPrimary,
+    isSecondBudgetAdminSecondary,
+    isSecondDeptHead,
+    isEngineer,
+    isAdmin,
+    isFirstLevel,
+    isSecondLevel,
+    isBudgetAdmin,
     login,
     logout,
     refresh,

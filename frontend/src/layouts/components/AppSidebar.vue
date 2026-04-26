@@ -22,31 +22,15 @@
       </template>
       <el-menu-item index="/budgets">预算列表</el-menu-item>
       <el-menu-item index="/budgets/create">创建预算</el-menu-item>
-      <el-menu-item index="/budgets/create-advanced">高级创建</el-menu-item>
-      <el-menu-item index="/budgets/summary">预算汇总</el-menu-item>
-      <el-menu-item index="/budgets/usage">使用追踪</el-menu-item>
+      <el-menu-item v-if="authStore.isFirstLevel" index="/budgets/summary">预算汇总</el-menu-item>
+      <el-menu-item v-if="authStore.isFirstBudgetAdmin" index="/budget-templates">模板管理</el-menu-item>
     </el-sub-menu>
 
-    <!-- 采购管理 -->
-    <el-sub-menu index="purchase">
-      <template #title>
-        <el-icon><ShoppingCart /></el-icon>
-        <span>采购管理</span>
-      </template>
-      <el-menu-item index="/purchase">采购申请列表</el-menu-item>
-      <el-menu-item index="/purchase/create">创建采购申请</el-menu-item>
-    </el-sub-menu>
-
-    <!-- 数据导入 -->
-    <el-sub-menu index="import">
-      <template #title>
-        <el-icon><Upload /></el-icon>
-        <span>数据导入</span>
-      </template>
-      <el-menu-item index="/import/purchase">采购订单导入</el-menu-item>
-      <el-menu-item index="/import/settlement">结算单导入</el-menu-item>
-      <el-menu-item index="/mapping">三单匹配</el-menu-item>
-    </el-sub-menu>
+    <!-- 专题需求收集 -->
+    <el-menu-item index="/special-requirements">
+      <el-icon><Document /></el-icon>
+      <template #title>专题需求收集</template>
+    </el-menu-item>
 
     <!-- 审批中心 -->
     <el-menu-item index="/approval">
@@ -68,7 +52,7 @@
       </template>
       <el-menu-item index="/departments">部门管理</el-menu-item>
       <el-menu-item index="/users">用户管理</el-menu-item>
-      <el-menu-item index="/roles">角色管理</el-menu-item>
+      <el-menu-item v-if="authStore.isAdmin" index="/roles">角色管理</el-menu-item>
       <el-menu-item index="/audit-logs">审计日志</el-menu-item>
       <el-menu-item index="/settings">系统设置</el-menu-item>
     </el-sub-menu>
@@ -78,11 +62,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import {
   Odometer,
   Wallet,
-  ShoppingCart,
-  Upload,
+  Document,
   Stamp,
   DataAnalysis,
   Setting,
@@ -93,6 +77,7 @@ defineProps<{
 }>()
 
 const route = useRoute()
+const authStore = useAuthStore()
 
 const activeMenu = computed(() => {
   return route.path

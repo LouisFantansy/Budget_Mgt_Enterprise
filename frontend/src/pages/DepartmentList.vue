@@ -32,6 +32,9 @@
           <template #default="{ node, data }">
             <span class="tree-node-label">
               <span>{{ node.label }}</span>
+              <el-tag size="small" :type="getDeptTypeTag(data.type)" style="margin-left: 6px">
+                {{ getDeptTypeLabel(data.type) }}
+              </el-tag>
               <span class="tree-node-actions">
                 <el-icon @click.stop="handleAdd(data)"><Plus /></el-icon>
               </span>
@@ -57,6 +60,11 @@
           <el-descriptions v-if="!isEditing" :column="2" border style="margin-top: 16px">
             <el-descriptions-item label="部门名称">{{ selectedDepartment.name }}</el-descriptions-item>
             <el-descriptions-item label="部门编码">{{ selectedDepartment.code }}</el-descriptions-item>
+            <el-descriptions-item label="部门类型">
+              <el-tag :type="getDeptTypeTag(selectedDepartment.type)" size="small">
+                {{ getDeptTypeLabel(selectedDepartment.type) }}
+              </el-tag>
+            </el-descriptions-item>
             <el-descriptions-item label="上级部门">
               {{ getParentName(selectedDepartment.parentId) || '无' }}
             </el-descriptions-item>
@@ -64,12 +72,6 @@
               <el-tag :type="selectedDepartment.status === 'ACTIVE' ? 'success' : 'danger'" size="small">
                 {{ selectedDepartment.status === 'ACTIVE' ? '启用' : '禁用' }}
               </el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="预算金额">
-              {{ formatMoney(selectedDepartment.budgetAmount || 0) }}
-            </el-descriptions-item>
-            <el-descriptions-item label="已用金额">
-              {{ formatMoney(selectedDepartment.usedAmount || 0) }}
             </el-descriptions-item>
             <el-descriptions-item label="创建时间">
               {{ formatDateTime(selectedDepartment.createdAt) }}
@@ -83,6 +85,13 @@
             </el-form-item>
             <el-form-item label="部门编码" prop="code">
               <el-input v-model="editForm.code" placeholder="请输入部门编码" />
+            </el-form-item>
+            <el-form-item label="部门类型" prop="type">
+              <el-select v-model="editForm.type" placeholder="选择部门类型" style="width: 100%">
+                <el-option label="一级部门" value="FIRST" />
+                <el-option label="二级部门" value="SECOND" />
+                <el-option label="SS Public" value="SS_PUBLIC" />
+              </el-select>
             </el-form-item>
             <el-form-item label="上级部门" prop="parentId">
               <el-tree-select
@@ -118,6 +127,13 @@
         <el-form-item label="部门编码" prop="code">
           <el-input v-model="addForm.code" placeholder="请输入部门编码" />
         </el-form-item>
+        <el-form-item label="部门类型" prop="type">
+          <el-select v-model="addForm.type" placeholder="选择部门类型" style="width: 100%">
+            <el-option label="一级部门" value="FIRST" />
+            <el-option label="二级部门" value="SECOND" />
+            <el-option label="SS Public" value="SS_PUBLIC" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="上级部门" prop="parentId">
           <el-tree-select
             v-model="addForm.parentId"
@@ -150,7 +166,7 @@ import { Search, Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import * as departmentApi from '@/api/modules/department'
 import type { Department } from '@/types'
-import { formatDateTime, formatMoney } from '@/utils/format'
+import { formatDateTime } from '@/utils/format'
 
 // ===================== 状态 =====================
 const loading = ref(false)
@@ -173,6 +189,7 @@ const editForm = reactive({
   id: 0,
   name: '',
   code: '',
+  type: 'SECOND' as 'FIRST' | 'SECOND' | 'SS_PUBLIC',
   parentId: null as number | null,
   status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
 })
@@ -180,6 +197,7 @@ const editForm = reactive({
 const editRules: FormRules = {
   name: [{ required: true, message: '请输入部门名称', trigger: 'blur' }],
   code: [{ required: true, message: '请输入部门编码', trigger: 'blur' }],
+  type: [{ required: true, message: '请选择部门类型', trigger: 'change' }],
 }
 
 // 新增弹窗
@@ -188,6 +206,7 @@ const addFormRef = ref<FormInstance>()
 const addForm = reactive({
   name: '',
   code: '',
+  type: 'SECOND' as 'FIRST' | 'SECOND' | 'SS_PUBLIC',
   parentId: null as number | null,
   status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE',
 })
@@ -195,11 +214,29 @@ const addForm = reactive({
 const addRules: FormRules = {
   name: [{ required: true, message: '请输入部门名称', trigger: 'blur' }],
   code: [{ required: true, message: '请输入部门编码', trigger: 'blur' }],
+  type: [{ required: true, message: '请选择部门类型', trigger: 'change' }],
 }
 
 // ===================== 方法 =====================
 
-// 获取部门树
+function getDeptTypeLabel(type?: string) {
+  const map: Record<string, string> = {
+    FIRST: '一级',
+    SECOND: '二级',
+    SS_PUBLIC: 'Public',
+  }
+  return map[type || ''] || type || '-'
+}
+
+function getDeptTypeTag(type?: string) {
+  const map: Record<string, '' | 'success' | 'warning' | 'danger' | 'info'> = {
+    FIRST: 'success',
+    SECOND: '',
+    SS_PUBLIC: 'warning',
+  }
+  return map[type || ''] || 'info'
+}
+
 async function fetchDepartmentTree() {
   loading.value = true
   try {
@@ -212,7 +249,6 @@ async function fetchDepartmentTree() {
   }
 }
 
-// 树搜索过滤
 function filterNode(value: string, data: any) {
   if (!value) return true
   return data.name.includes(value)
@@ -222,7 +258,6 @@ watch(treeFilter, (val) => {
   treeRef.value?.filter(val)
 })
 
-// 获取上级部门名称
 function getParentName(parentId?: number) {
   if (!parentId) return ''
   return findDepartmentName(departmentTree.value, parentId)
@@ -239,29 +274,26 @@ function findDepartmentName(depts: Department[], id: number): string {
   return ''
 }
 
-// 选择部门
 function handleNodeClick(data: Department) {
   selectedDepartment.value = data
   isEditing.value = false
 }
 
-// 开始编辑
 function startEdit() {
   if (!selectedDepartment.value) return
   isEditing.value = true
   editForm.id = selectedDepartment.value.id
   editForm.name = selectedDepartment.value.name
   editForm.code = selectedDepartment.value.code
+  editForm.type = (selectedDepartment.value.type as any) || 'SECOND'
   editForm.parentId = selectedDepartment.value.parentId || null
   editForm.status = selectedDepartment.value.status
 }
 
-// 取消编辑
 function cancelEdit() {
   isEditing.value = false
 }
 
-// 保存编辑
 async function handleSaveEdit() {
   const valid = await editFormRef.value?.validate().catch(() => false)
   if (!valid) return
@@ -271,6 +303,7 @@ async function handleSaveEdit() {
     await departmentApi.updateDepartment(editForm.id, {
       name: editForm.name,
       code: editForm.code,
+      type: editForm.type,
       parentId: editForm.parentId || undefined,
       status: editForm.status,
     })
@@ -284,7 +317,6 @@ async function handleSaveEdit() {
   }
 }
 
-// 删除部门
 async function handleDelete() {
   if (!selectedDepartment.value) return
   const dept = selectedDepartment.value
@@ -311,10 +343,10 @@ async function handleDelete() {
   }
 }
 
-// 新增部门
 function handleAdd(parent: Department | null) {
   addForm.name = ''
   addForm.code = ''
+  addForm.type = 'SECOND'
   addForm.parentId = parent?.id || null
   addForm.status = 'ACTIVE'
   addDialogVisible.value = true
@@ -329,6 +361,7 @@ async function handleAddSubmit() {
     await departmentApi.createDepartment({
       name: addForm.name,
       code: addForm.code,
+      type: addForm.type,
       parentId: addForm.parentId || undefined,
       status: addForm.status,
     })
@@ -361,7 +394,7 @@ onMounted(() => {
 }
 
 .department-tree-panel {
-  width: 320px;
+  width: 340px;
   flex-shrink: 0;
   background: #fff;
   border-radius: 8px;

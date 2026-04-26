@@ -52,10 +52,11 @@ class DepartmentViewSet(ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        # 支持 status、level、parent 筛选
+        # 支持 status、level、parent、type 筛选
         status_param = self.request.query_params.get('status')
         level = self.request.query_params.get('level')
         parent_id = self.request.query_params.get('parentId')
+        dept_type = self.request.query_params.get('type')
 
         if status_param:
             queryset = queryset.filter(status=status_param)
@@ -66,6 +67,8 @@ class DepartmentViewSet(ModelViewSet):
                 queryset = queryset.filter(parent__isnull=True)
             else:
                 queryset = queryset.filter(parent_id=parent_id)
+        if dept_type:
+            queryset = queryset.filter(dept_type=dept_type)
 
         return queryset
 
